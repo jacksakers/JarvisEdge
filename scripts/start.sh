@@ -2,6 +2,9 @@
 # Launches the backend (FastAPI) and frontend (Vite dev server) together.
 # Ctrl+C stops both.
 set -euo pipefail
+# Job control so each background job gets its own process group — lets
+# cleanup() kill -TERM "-$PID" reach child processes too (e.g. npm's vite).
+set -m
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
@@ -15,12 +18,12 @@ trap cleanup EXIT INT TERM
 
 echo "==> Starting backend (http://localhost:8010)"
 cd "$ROOT/backend"
-setsid ./.venv/bin/python run.py &
+./.venv/bin/python run.py &
 BACKEND_PID=$!
 
 echo "==> Starting frontend (http://localhost:5180)"
 cd "$ROOT/frontend"
-setsid npm run dev -- --port 5180 --strictPort &
+npm run dev -- --port 5180 --strictPort &
 FRONTEND_PID=$!
 
 echo
