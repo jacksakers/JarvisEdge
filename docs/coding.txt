@@ -1,0 +1,49 @@
+Coding Guidelines: Jarvis Edge Node
+
+This document outlines the coding standards across the C++, Python, and JavaScript stacks used in the Jarvis Edge Node project to ensure a maintainable, high-performance system.
+
+1. General Principles
+
+Decoupling: The ESP32 should be as "dumb" as possible regarding business logic. All formatting, AI thinking, and data structuring belong on the Python backend. The ESP32 is strictly an I/O device.
+
+Non-Blocking Operations: On both the ESP32 and the FastAPI server, avoid blocking the main execution thread. Use FreeRTOS tasks (C++) and async/await (Python).
+
+2. Firmware (C++ / ESP32)
+
+2.1 LVGL Implementation
+
+UI Generation: Avoid hardcoding massive UI structures in C++. Use SquareLine Studio to generate the base LVGL code for your static elements (fonts, background colors, status bar).
+
+Dynamic Updates: For dynamic data (AI text, to-do lists), expose LVGL object pointers (e.g., lv_obj_t * jarvis_feed_label) globally or via setter functions so your MQTT callback can easily update the text using lv_label_set_text(jarvis_feed_label, new_text).
+
+Task Management: LVGL requires periodic calls to lv_task_handler(). This MUST be called in the main loop or a dedicated FreeRTOS task every ~5ms.
+
+2.2 Audio and Hardware
+
+I2S Buffering: When reading from the I2S microphone, use double-buffering. Read into Buffer A while Buffer B is writing to the SD card to prevent dropped frames and audio glitching.
+
+Interrupts: Use hardware interrupts (attachInterrupt) for the physical BOOT button. Keep the ISR (Interrupt Service Routine) extremely short—simply set a boolean flag is_recording = true; and let the main loop handle the heavy lifting of turning off the screen and opening the SD file.
+
+3. Backend (Python / FastAPI)
+
+3.1 API Structure
+
+Async First: All endpoint handlers must use async def. When interacting with Ollama or standard HTTP requests to external APIs, use asynchronous libraries like httpx or aiohttp to prevent the web server from hanging during AI generation.
+
+WebSocket Audio: When implementing the WebSocket endpoint for live streaming, process incoming bytes in chunks.
+
+Background Tasks: Use fastapi.BackgroundTasks for the heavy LLM processing so the device receives its HTTP 200 OK immediately and can delete the file from the SD card without waiting for Gemma 4 to finish thinking.
+
+3.2 Prompt Engineering & Routing
+
+Separate system prompts into a configuration file (prompts.yaml or in the SQLite DB) rather than hardcoding them in the Python logic. This allows the Vite frontend to update them dynamically.
+
+4. Frontend (Vite / React/Vue)
+
+4.1 State Management
+
+Keep the UI state synchronized with the backend via polling or WebSockets. If the backend processes a queue item, the frontend should reflect that queue reduction in near real-time.
+
+4.2 API Integration
+
+Abstract all API calls (fetching settings, updating prompts, viewing logs) into a dedicated service file (e.g., apiService.js) rather than mixing fetch() calls directly inside UI components.

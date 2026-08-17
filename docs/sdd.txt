@@ -1,0 +1,107 @@
+System Design Document: Jarvis Edge Node
+
+1. Executive Summary
+
+The Jarvis Edge Node is a purpose-built, dedicated mobile hardware interface for a local home AI framework ("Jarvis"). Utilizing an Elecrow ESP32 3.5-inch touchscreen device with LoRa, SD card storage, and an onboard microphone, the device serves as a frictionless capture point for daily logs, thoughts, and tasks. It operates on a dual-tier AI architecture, providing instant, lightweight responses on the edge while queuing heavy processing tasks for the home server.
+
+2. System Architecture
+
+The system operates across three distinct tiers:
+
+2.1 Edge Device (ESP32 Firmware)
+
+Role: Data capture, UI rendering, offline storage.
+
+Hardware: Elecrow ESP32 3.5" (ESP32-S3 recommended for I2S Mic/Speaker support).
+
+Display: ILI9488 driver, 480x320 resolution, Capacitive touch.
+
+Core Logic: C++ (Arduino IDE or ESP-IDF).
+
+UI Framework: LVGL (Light and Versatile Graphics Library) for snappy, native-feeling rendering.
+
+Offline Queue: Micro SD card utilizing the standard SD.h library to store .wav audio files and local UI assets.
+
+2.2 Home Server Backend (FastAPI / Python)
+
+Role: Central hub, AI routing, database management, and MQTT broker communication.
+
+Environment: Linux Mini PC.
+
+API Framework: FastAPI, utilizing WebSockets for real-time audio ingestion and HTTP REST for status checks.
+
+AI Orchestration:
+
+Transcription: Local ASR (e.g., Whisper, Qwen-ASR).
+
+Fast LLM Tier: Lightweight model (e.g., Qwen3 8B, Phi-4-mini) via Ollama for immediate UI feedback.
+
+Heavy LLM Tier: High-capacity model (e.g., Gemma 4 31B) for batch-processing daily logs into structured data.
+
+Communication: Paho-MQTT or fastapi-mqtt to push JSONL UI updates to the ESP32.
+
+2.3 Administration Frontend (Vite / React)
+
+Role: Control center, prompt engineering, queue monitoring, and long-form data review.
+
+Stack: Vite + React (or Vue).
+
+Features: Dashboard for to-do lists, settings for toggling AI models, and manual UI template editing.
+
+3. User Interface & Experience (UI/UX)
+
+The UI must prioritize speed and tactile reliability over dense information displays.
+
+Interaction Model: Smartwatch-style swipeable carousel. Avoid nested menus.
+
+Theme: High-contrast Dark Mode (saves battery, masks LCD refresh rates).
+
+Key Views:
+
+Persistent Status Bar: Battery, Wi-Fi, LoRa, Queue Status.
+
+Jarvis Feed (Home): Displays the most recent AI confirmation or alert in a large, readable font.
+
+Daily Focus: Top 3 actionable items pushed from the server. Tap to strike through.
+
+Action Grid: 2x2 grid of massive manual trigger buttons (Time Track, Note, Alert, Dismiss).
+
+The "Plaud" Mode: When the physical BOOT button is held, the screen backlight turns off entirely (saving power and CPU cycles), and the device immediately begins routing I2S microphone data directly to the SD card.
+
+4. Core Workflows
+
+4.1 Audio Capture & Offline Queuing
+
+User presses the physical BOOT button.
+
+ESP32 kills the UI rendering loop and turns off the display backlight.
+
+ESP32 captures I2S audio and writes a .wav file to /queue/ on the SD card.
+
+User presses BOOT again; the screen wakes up, and the UI resumes.
+
+4.2 Auto-Sync & Fast Response
+
+ESP32 connects to the home Wi-Fi network.
+
+Background task iterates through /queue/*.wav.
+
+Audio is POSTed to the FastAPI server.
+
+Server transcribes the audio and queries the "Fast LLM".
+
+Server publishes an MQTT payload containing the AI's short response.
+
+ESP32 receives the MQTT payload and immediately updates the "Jarvis Feed" LVGL text block.
+
+Original .wav is deleted from the SD card.
+
+4.3 Heavy Batch Processing
+
+Following transcription, the FastAPI server pushes the raw text to a background Celery/Redis queue or native Python background task.
+
+The "Heavy LLM" processes the text (e.g., parsing a rambling thought into a structured to-do list).
+
+The server updates the SQLite database.
+
+The server pushes a new MQTT payload to update the ESP32's "Daily Focus" card.

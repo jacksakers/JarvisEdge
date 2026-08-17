@@ -1,0 +1,79 @@
+Implementation Guide: Jarvis Edge Node
+
+This guide provides a phased roadmap for building the Jarvis Edge Node system.
+
+Phase 1: Hardware Baseline & UI Shell
+
+Goal: Get the screen turning on, rendering a static UI, and responding to touch without lag.
+
+Environment Setup: Set up Arduino IDE or PlatformIO for the ESP32-S3. Install TFT_eSPI (for display drivers) and lvgl libraries.
+
+Display Init: Write the setup code to initialize the ILI9488 display. Confirm you can draw simple shapes.
+
+SquareLine Studio: Use SquareLine Studio to design the "Smartwatch" carousel layout (Status Bar, Jarvis Feed, To-Do list). Export the C code and integrate it into your project.
+
+Touch Integration: Connect the capacitive touch interrupts to LVGL's input device system (lv_indev_drv_t).
+
+Test: Ensure you can swipe between the static screens smoothly.
+
+Phase 2: Audio & Offline Mode (The "Plaud" Feature)
+
+Goal: Capture audio to the SD card and toggle the screen via the hardware button.
+
+SD Card Init: Initialize the SPI connection to the onboard TF card slot.
+
+I2S Microphone: Configure the I2S driver to read from the Elecrow's onboard microphone pins.
+
+The State Machine: Implement the hardware button interrupt.
+
+On Press (Start): Turn off TFT backlight (digitalWrite(TFT_BL, LOW)), pause lv_task_handler(), open /queue/log_X.wav, start I2S read loop.
+
+On Press (Stop): Close .wav file, turn on backlight, resume lv_task_handler().
+
+Test: Walk away from your PC, record a message, take the SD card out, and play the WAV file on your computer.
+
+Phase 3: Backend API & AI Routing
+
+Goal: Stand up the FastAPI server and configure the dual-model AI pipeline.
+
+FastAPI Setup: Initialize a standard FastAPI app with an SQLite database.
+
+The Ingestion Endpoint: Create a POST /upload/audio endpoint that accepts multipart form data (the WAV file).
+
+Transcription Pipeline: Integrate a local Whisper/Qwen-ASR script that runs on the received audio.
+
+Dual-Routing Logic: * Route transcribed text to Ollama (Fast Model) using httpx.
+
+Add the raw text to a FastAPI BackgroundTask to be processed by the Heavy Model later.
+
+Test: Use Postman or curl to manually upload the WAV file from Phase 2 to the server and ensure both AI models trigger correctly.
+
+Phase 4: Synchronization & MQTT
+
+Goal: Connect the Edge Node to the Backend.
+
+MQTT Broker: Install Mosquitto on your Linux Mini PC.
+
+Backend Publisher: Integrate fastapi-mqtt into your Python backend. Have the "Fast Model" completion function publish a JSON payload to topic jarvis/ui/update.
+
+ESP32 Wi-Fi & MQTT: Add Wi-Fi and standard PubSubClient (MQTT) libraries to your C++ firmware.
+
+Auto-Sync Loop: Write a background loop on the ESP32: If Wi-Fi is connected, iterate over files in /queue/, send them via HTTP POST to the Phase 3 endpoint, and delete on success.
+
+UI Update Callback: In the ESP32 MQTT callback, parse incoming JSON and update the LVGL text labels (e.g., change the "Jarvis Feed" text to the AI's response).
+
+Phase 5: Vite Command Center
+
+Goal: Build the web app to manage the system.
+
+Vite Init: Scaffold a new React/Vue project using Vite.
+
+Dashboard UI: Build views for:
+
+Settings: Dropdowns to select which Ollama models are assigned to the Fast/Heavy tiers.
+
+Prompts: Text areas to edit the system prompts (saved to the FastAPI SQLite DB).
+
+Data: A list view of the tasks/notes the Heavy model generated from your day's recordings.
+
+Deploy: Host the Vite static build alongside your FastAPI server on the Mini PC.
