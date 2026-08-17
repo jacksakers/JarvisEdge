@@ -24,6 +24,7 @@
 #include "wifi_manager.h"
 #include "mqtt_client.h"
 #include "sync_manager.h"
+#include "device_heartbeat.h"
 
 void setup()
 {
@@ -51,6 +52,7 @@ void setup()
     wifiManagerInit();   // background WiFi connect (non-blocking)
     mqttClientInit();    // configure broker + UI-update subscriptions
     syncManagerInit();   // background auto-sync task (core 0)
+    deviceHeartbeatInit(); // periodic online/offline ping to the Command Center
 
     Serial.println("[JarvisEdge] Init complete. Entering loop.");
 }
@@ -66,6 +68,7 @@ void loop()
     unsigned long now = millis();
     wifiManagerHandle(now);
     mqttClientHandle(now);
+    deviceHeartbeatHandle(now);
 
     // 5 ms yield keeps timing accurate without blocking touch/I2S.
     delay(5);

@@ -16,6 +16,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import BackgroundTasks, FastAPI, File, HTTPException, UploadFile
+from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
@@ -25,6 +26,7 @@ from app import jarvis_client, mqtt
 from app.asr import transcribe_wav
 from app.config import get_audio_dir, load_config, load_prompts, save_config, save_prompts
 from app.database import init_db, session_scope
+from app.device_status import get_status as get_device_status, record_heartbeat
 from app.llm import fast_reply, heavy_process, list_available_models
 from app.models import ActionEvent, FocusItem, LogEntry
 
@@ -64,6 +66,25 @@ app.add_middleware(
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+
+
+class DeviceHeartbeat(BaseModel):
+    wifi_rssi: int | None = None
+    queue_count: int | None = None
+    firmware: str | None = None
+
+
+@app.post("/device/heartbeat")
+async def device_heartbeat(payload: DeviceHeartbeat):
+    """Called periodically by the firmware (device_heartbeat.cpp) so the
+    Command Center can show whether the ESP32 is actually online."""
+    record_heartbeat(payload.model_dump())
+    return {"ok": True}
+
+
+@app.get("/device/status")
+async def device_status():
+    return get_device_status()
 
 
 def _publish_focus_from_db() -> None:
@@ -143,7 +164,9 @@ async def upload_audio(background_tasks: BackgroundTasks, file: UploadFile = Fil
     if len(audio_bytes) > MAX_UPLOAD_BYTES:
         raise HTTPException(413, "Audio upload too large")
 
-    transcript = transcribe_wav(audio_bytes)
+    # Whisper inference is CPU-bound and blocking — run off the event loop so
+    # it doesn't stall heartbeat/MQTT/other requests for the transcription duration.
+    transcript = await run_in_threadpool(transcribe_wav, audio_bytes)
     if not transcript:
         raise HTTPException(422, "Transcription produced no text")
 

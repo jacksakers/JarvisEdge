@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { Outlet } from 'react-router-dom'
-import { Settings2, Wifi, WifiOff } from 'lucide-react'
+import { Settings2, Wifi, WifiOff, Radio, RadioOff } from 'lucide-react'
 import Sidebar from './Sidebar.jsx'
 import useHealth from '../hooks/useHealth.js'
+import useDeviceStatus from '../hooks/useDeviceStatus.js'
 import { getBaseUrl, setBaseUrl } from '../api.js'
 
 function BackendUrlPopover({ onClose }) {
@@ -41,6 +42,7 @@ function BackendUrlPopover({ onClose }) {
 
 export default function AppShell() {
   const connected = useHealth()
+  const device = useDeviceStatus()
   const [showUrlPopover, setShowUrlPopover] = useState(false)
 
   return (
@@ -53,15 +55,27 @@ export default function AppShell() {
 
       <div className="flex flex-col flex-1 min-w-0 relative z-10">
         <header className="flex items-center justify-between px-6 py-3 border-b border-jarvis-border glass md:bg-transparent md:backdrop-blur-none md:border-b md:border-jarvis-border">
-          <div className="flex items-center gap-2 text-sm text-jarvis-muted">
-            {connected ? (
-              <Wifi size={14} className="text-jarvis-green" />
-            ) : (
-              <WifiOff size={14} className="text-jarvis-red" />
-            )}
-            <span className={connected ? 'text-jarvis-green' : 'text-jarvis-red'}>
-              {connected ? 'Backend connected' : 'Backend unreachable'}
-            </span>
+          <div className="flex items-center gap-4 text-sm text-jarvis-muted">
+            <div className="flex items-center gap-2">
+              {connected ? (
+                <Wifi size={14} className="text-jarvis-green" />
+              ) : (
+                <WifiOff size={14} className="text-jarvis-red" />
+              )}
+              <span className={connected ? 'text-jarvis-green' : 'text-jarvis-red'}>
+                {connected ? 'Backend connected' : 'Backend unreachable'}
+              </span>
+            </div>
+            <div className="flex items-center gap-2" title={device.last_seen ? `Last heartbeat: ${new Date(device.last_seen).toLocaleString()}` : 'No heartbeat received yet'}>
+              {device.online ? (
+                <Radio size={14} className="text-jarvis-green" />
+              ) : (
+                <RadioOff size={14} className="text-jarvis-red" />
+              )}
+              <span className={device.online ? 'text-jarvis-green' : 'text-jarvis-red'}>
+                {device.online ? 'Device online' : 'Device offline'}
+              </span>
+            </div>
           </div>
 
           <div className="relative">

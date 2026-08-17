@@ -29,6 +29,7 @@ async function request(path, options = {}) {
 export const api = {
   // System
   getHealth: () => request('/health'),
+  getDeviceStatus: () => request('/device/status'),
 
   // Settings / Prompts
   getSettings: () => request('/settings'),
