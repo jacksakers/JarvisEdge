@@ -166,11 +166,22 @@ async def upload_audio(background_tasks: BackgroundTasks, file: UploadFile = Fil
 
     # Whisper inference is CPU-bound and blocking — run off the event loop so
     # it doesn't stall heartbeat/MQTT/other requests for the transcription duration.
-    transcript = await run_in_threadpool(transcribe_wav, audio_bytes)
+    # Any failure here becomes a deterministic 422 (not a bare 500) so the
+    # device's sync loop can tell "never going to work" apart from "try again"
+    # instead of re-uploading (and re-transcribing) the same file forever.
+    try:
+        transcript = await run_in_threadpool(transcribe_wav, audio_bytes)
+    except Exception:
+        logger.exception("[ASR] Transcription raised for a %d-byte upload.", len(audio_bytes))
+        raise HTTPException(422, "Transcription failed")
     if not transcript:
         raise HTTPException(422, "Transcription produced no text")
 
-    response_text = await fast_reply(transcript)
+    try:
+        response_text = await fast_reply(transcript)
+    except Exception:
+        logger.exception("[Fast LLM] fast_reply failed for log transcript.")
+        raise HTTPException(422, "Fast-tier response failed")
 
     # Kept on disk for the Command Center's audio playback (Voice Logs page) —
     # handy for debugging mic/capture issues. Disable via config.yaml `audio.keep_files: false`.

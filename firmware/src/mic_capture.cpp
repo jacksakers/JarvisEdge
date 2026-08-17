@@ -44,6 +44,12 @@ struct WavHeader {
 
 #define CHUNK_BYTES  4096   /* 2048 samples @ 16-bit mono, ~128 ms per chunk */
 
+/* ESP32-S3 PDM RX decimation filter outputs samples at a fraction of full
+ * scale — recordings come out sounding like near-silence with only the
+ * loudest transients audible ("pops") unless amplified in software. Start
+ * conservative and raise if voice is still too quiet; watch for clipping. */
+#define MIC_DIGITAL_GAIN  8
+
 struct WriteItem {
     uint8_t * data;
     size_t    len;
@@ -101,6 +107,20 @@ static bool i2s_mic_install()
 static void i2s_mic_uninstall()
 {
     i2s_driver_uninstall(MIC_I2S_PORT);
+}
+
+// ── Digital gain (see MIC_DIGITAL_GAIN above) ─────────────────────────────
+
+static void apply_gain(uint8_t * buf, size_t len)
+{
+    int16_t * samples = (int16_t *)buf;
+    size_t count = len / sizeof(int16_t);
+    for (size_t i = 0; i < count; i++) {
+        int32_t amplified = (int32_t)samples[i] * MIC_DIGITAL_GAIN;
+        if (amplified > INT16_MAX) amplified = INT16_MAX;
+        else if (amplified < INT16_MIN) amplified = INT16_MIN;
+        samples[i] = (int16_t)amplified;
+    }
 }
 
 // ── WAV header ────────────────────────────────────────────────────────────
@@ -201,6 +221,7 @@ void micCaptureHandle()
 
     /* Non-blocking: 0 ms timeout — grab whatever's in the DMA buffer now. */
     i2s_read(MIC_I2S_PORT, buf + s_fill_len, remaining, &bytes_read, 0);
+    apply_gain(buf + s_fill_len, bytes_read);
     s_fill_len += bytes_read;
 
     if (s_fill_len >= CHUNK_BYTES) {

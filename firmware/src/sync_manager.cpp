@@ -30,10 +30,54 @@
  * runaway Plaud recording exhausting heap during upload. */
 #define SYNC_MAX_FILE_BYTES  (8UL * 1024 * 1024)
 
-static bool upload_one(const String &path, size_t file_len)
+// Whether a failed upload is worth retrying next cycle, or should just be
+// dropped so a permanently-unprocessable file (e.g. transcription found no
+// speech) doesn't clog /queue and get re-uploaded forever.
+enum class UploadResult { Success, PermanentFailure, RetryLater };
+
+// Belt-and-suspenders cap: whatever the backend's failure mode is (crash,
+// hang, flaky network), a single file must never retry forever — that's
+// what was pinning the backend's CPU and freezing the host. Tracked in RAM
+// only (resets on reboot), which is fine since a fresh boot deserves a
+// fresh attempt count.
+#define SYNC_MAX_RETRIES   5
+#define SYNC_TRACK_SLOTS   16
+#define SYNC_INTER_UPLOAD_DELAY_MS  2000UL
+
+struct RetryTrack {
+    char name[40];
+    uint8_t attempts;
+};
+static RetryTrack s_retry_track[SYNC_TRACK_SLOTS];
+
+static uint8_t track_attempt(const String &name)
+{
+    RetryTrack * free_slot = nullptr;
+    for (auto &slot : s_retry_track) {
+        if (slot.name[0] == '\0') { if (!free_slot) free_slot = &slot; continue; }
+        if (name.equals(slot.name)) {
+            slot.attempts++;
+            return slot.attempts;
+        }
+    }
+    if (!free_slot) free_slot = &s_retry_track[0];   // table full — reuse oldest slot
+    strncpy(free_slot->name, name.c_str(), sizeof(free_slot->name) - 1);
+    free_slot->name[sizeof(free_slot->name) - 1] = '\0';
+    free_slot->attempts = 1;
+    return 1;
+}
+
+static void track_clear(const String &name)
+{
+    for (auto &slot : s_retry_track) {
+        if (name.equals(slot.name)) { slot.name[0] = '\0'; break; }
+    }
+}
+
+static UploadResult upload_one(const String &path, size_t file_len)
 {
     File f = SD.open(path.c_str(), FILE_READ);
-    if (!f) return false;
+    if (!f) return UploadResult::RetryLater;
 
     String filename = path.substring(path.lastIndexOf('/') + 1);
     String head = "--" SYNC_BOUNDARY "\r\n"
@@ -47,7 +91,7 @@ static bool upload_one(const String &path, size_t file_len)
     if (!body) {
         Serial.println("[Sync] PSRAM alloc failed — will retry next cycle.");
         f.close();
-        return false;
+        return UploadResult::RetryLater;
     }
 
     memcpy(body, head.c_str(), head.length());
@@ -61,16 +105,27 @@ static bool upload_one(const String &path, size_t file_len)
     HTTPClient http;
     http.begin(url);
     http.addHeader("Content-Type", "multipart/form-data; boundary=" SYNC_BOUNDARY);
+    // Default 5s read timeout is far too short — the backend blocks on a
+    // CPU-bound Whisper transcription plus a fast-tier LLM call before
+    // responding, which routinely takes longer than that (HTTP -11 retries).
+    http.setTimeout(60000);
+    http.setConnectTimeout(10000);
     int code = http.POST(body, head.length() + read_bytes + tail_len);
     http.end();
     free(body);
 
     if (code == 200) {
         Serial.printf("[Sync] Uploaded %s (HTTP 200).\n", filename.c_str());
-        return true;
+        return UploadResult::Success;
     }
-    Serial.printf("[Sync] Upload failed for %s: HTTP %d\n", filename.c_str(), code);
-    return false;
+    // 4xx means the backend rejected this specific file for good (e.g. empty
+    // upload, or ASR found no speech in it) — retrying won't change that.
+    if (code >= 400 && code < 500) {
+        Serial.printf("[Sync] Upload rejected for %s: HTTP %d — discarding.\n", filename.c_str(), code);
+        return UploadResult::PermanentFailure;
+    }
+    Serial.printf("[Sync] Upload failed for %s: HTTP %d (will retry)\n", filename.c_str(), code);
+    return UploadResult::RetryLater;
 }
 
 static void sync_task(void * pv)
@@ -98,7 +153,23 @@ static void sync_task(void * pv)
                 continue;
             }
 
-            if (upload_one(name, len)) SD.remove(name.c_str());
+            UploadResult result = upload_one(name, len);
+            if (result == UploadResult::RetryLater) {
+                uint8_t attempts = track_attempt(name);
+                if (attempts >= SYNC_MAX_RETRIES) {
+                    Serial.printf("[Sync] %s failed %u times — giving up, discarding.\n", name.c_str(), attempts);
+                    result = UploadResult::PermanentFailure;
+                }
+            }
+            if (result != UploadResult::RetryLater) {
+                SD.remove(name.c_str());
+                track_clear(name);
+            }
+
+            // Never hammer the backend back-to-back, even when catching up
+            // on a large backlog — gives the CPU-bound ASR/LLM pipeline room
+            // to breathe between requests.
+            vTaskDelay(pdMS_TO_TICKS(SYNC_INTER_UPLOAD_DELAY_MS));
         }
         dir.close();
         uiStatusBarSetQueueCount(sdCardCountQueueFiles());
