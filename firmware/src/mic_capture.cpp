@@ -32,26 +32,20 @@ struct WavHeader {
 #define READ_CHUNK_BYTES      4096
 #define MIC_MAX_RECORD_BYTES  (3UL * 1024 * 1024)
 
-/* Adjust gain once DC offset is removed. Start at 4 or 8. */
-#define MIC_DIGITAL_GAIN      4
+/* Digital gain multiplier for clean PCM audio */
+#define MIC_DIGITAL_GAIN      2
 
-/* Select Microphone Mode: 0 for Standard I2S MEMS mic (INMP441 / L330 / F1J1), 1 for PDM mic */
+/* Force PDM Mode 1 for Elecrow ESP32-S3 v1.2+ hardware */
 #ifndef MIC_TYPE_PDM
-#define MIC_TYPE_PDM 0
+#define MIC_TYPE_PDM 1
 #endif
 
-/* Hardware Pin Mapping for Elecrow ESP32-S3 Board */
-#ifndef MIC_I2S_BCK
-#define MIC_I2S_BCK  9   /* Bit Clock (SCK) */
-#endif
-#ifndef MIC_I2S_WS
-#define MIC_I2S_WS   3   /* Word Select / LRCLK */
+/* 2-Pin PDM Pin Mapping for Elecrow ESP32-S3 Board */
+#ifndef MIC_I2S_CLK
+#define MIC_I2S_CLK  9   /* PDM Clock Pin */
 #endif
 #ifndef MIC_I2S_DATA
-#define MIC_I2S_DATA 10  /* Serial Data Input (SD) */
-#endif
-#ifndef MIC_PWR_PIN
-#define MIC_PWR_PIN  -1  /* Optional GPIO power enable pin (-1 if powered by 3V3 rail directly) */
+#define MIC_I2S_DATA 10  /* PDM Serial Data Input */
 #endif
 
 enum ChannelSelect {
@@ -75,23 +69,14 @@ static bool          s_dc_init       = false;
 static ChannelSelect s_chan_mode     = CHAN_AUTO;
 static uint32_t      s_last_debug_ms = 0;
 
-// ── I2S (Standard I2S / PDM RX) ───────────────────────────────────────────
-
 static bool i2s_mic_install()
 {
     i2s_config_t cfg = {
-#if MIC_TYPE_PDM
-        /* ESP32-S3 PDM hardware RX mode requires I2S_MODE_PDM */
+        /* ESP32-S3 Hardware PDM Mode activates built-in decimation filter */
         .mode                 = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_RX | I2S_MODE_PDM),
         .sample_rate          = MIC_SAMPLE_RATE,
         .bits_per_sample      = I2S_BITS_PER_SAMPLE_16BIT,
-#else
-        /* Standard I2S master receiver mode for MEMS microphones */
-        .mode                 = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_RX),
-        .sample_rate          = MIC_SAMPLE_RATE,
-        .bits_per_sample      = I2S_BITS_PER_SAMPLE_32BIT, /* Standard MEMS mic 24/32-bit slot */
-#endif
-        .channel_format       = I2S_CHANNEL_FMT_RIGHT_LEFT,  /* Sample both stereo slots to auto-detect active L/R channel */
+        .channel_format       = I2S_CHANNEL_FMT_RIGHT_LEFT,
         .communication_format = I2S_COMM_FORMAT_STAND_I2S,
         .intr_alloc_flags     = ESP_INTR_FLAG_LEVEL1,
         .dma_buf_count        = 4,
@@ -108,15 +93,10 @@ static bool i2s_mic_install()
 
     i2s_pin_config_t pins = {
         .mck_io_num   = I2S_PIN_NO_CHANGE,
-#if MIC_TYPE_PDM
-        .bck_io_num   = I2S_PIN_NO_CHANGE,   /* Unused in PDM mode */
-        .ws_io_num    = MIC_I2S_BCK,         /* PDM CLK pin */
-#else
-        .bck_io_num   = MIC_I2S_BCK,         /* IO9 - Bit Clock / SCK */
-        .ws_io_num    = MIC_I2S_WS,          /* IO3 - Word Select / WS */
-#endif
+        .bck_io_num   = I2S_PIN_NO_CHANGE,   /* Unused in 2-pin PDM mode */
+        .ws_io_num    = MIC_I2S_CLK,         /* In ESP32 PDM RX mode, ws_io_num outputs PDM CLK (IO9) */
         .data_out_num = I2S_PIN_NO_CHANGE,
-        .data_in_num  = MIC_I2S_DATA,        /* IO10 - Serial Data / SD */
+        .data_in_num  = MIC_I2S_DATA,        /* PDM DATA (IO10) */
     };
 
     if (i2s_set_pin(MIC_I2S_PORT, &pins) != ESP_OK) {
@@ -137,14 +117,9 @@ static void i2s_mic_uninstall()
     i2s_driver_uninstall(MIC_I2S_PORT);
 }
 
-// ── Auto Channel Selection & 32-bit to 16-bit Conversion ─────────────────
-
 static size_t deinterleave_pdm_samples(const uint8_t * src, size_t src_len, uint8_t * dst)
 {
     int16_t * mono = (int16_t *)dst;
-
-#if MIC_TYPE_PDM
-    /* ESP32-S3 PDM Hardware RX outputs native 16-bit PCM samples */
     const int16_t * stereo16 = (const int16_t *)src;
     size_t pair_count = src_len / (2 * sizeof(int16_t));
 
@@ -165,21 +140,19 @@ static size_t deinterleave_pdm_samples(const uint8_t * src, size_t src_len, uint
         int32_t l_delta = l_max - l_min;
         int32_t r_delta = r_max - r_min;
 
-        bool left_active  = l_delta > 10;
-        bool right_active = r_delta > 10;
+        bool left_active  = l_delta > 100;
+        bool right_active = r_delta > 100;
 
         if (left_active && !right_active) {
             s_chan_mode = CHAN_LEFT;
-            Serial.printf("[Mic Diag] Auto-detected PDM Channel: LEFT (L/R=GND). Right silent.\n");
+            Serial.println("[Mic Diag] PDM active channel auto-detected: LEFT.");
         } else if (right_active && !left_active) {
             s_chan_mode = CHAN_RIGHT;
-            Serial.printf("[Mic Diag] Auto-detected PDM Channel: RIGHT (L/R=VDD). Left silent.\n");
-        } else if (!left_active && !right_active) {
-            s_chan_mode = CHAN_LEFT; /* Fallback to avoid averaging dead signals */
-            Serial.printf("[Mic Diag] WARNING: BOTH CHANNELS DEAD (Flatline %d). Check wiring/MIC_TYPE_PDM!\n", l_min);
+            Serial.println("[Mic Diag] PDM active channel auto-detected: RIGHT.");
         } else {
-            s_chan_mode = CHAN_BOTH;
-            Serial.println("[Mic Diag] Auto-detected PDM Channel: BOTH channels active.");
+            /* Elecrow onboard SPM1423 PDM microphone defaults to LEFT */
+            s_chan_mode = CHAN_LEFT;
+            Serial.println("[Mic Diag] Channel auto-detect default: LEFT.");
         }
     }
 
@@ -197,69 +170,7 @@ static size_t deinterleave_pdm_samples(const uint8_t * src, size_t src_len, uint
     }
 
     return pair_count * sizeof(int16_t);
-
-#else
-    /* Standard 32-bit I2S mode (24-bit MEMS audio in 32-bit slots) */
-    const int32_t * stereo32 = (const int32_t *)src;
-    size_t pair_count = src_len / (2 * sizeof(int32_t));
-
-    if (s_chan_mode == CHAN_AUTO && pair_count > 0) {
-        int32_t l_min = INT32_MAX, l_max = INT32_MIN;
-        int32_t r_min = INT32_MAX, r_max = INT32_MIN;
-
-        for (size_t i = 0; i < pair_count; i++) {
-            int32_t l = stereo32[2 * i] >> 14;
-            int32_t r = stereo32[2 * i + 1] >> 14;
-
-            if (l < l_min) l_min = l;
-            if (l > l_max) l_max = l;
-            if (r < r_min) r_min = r;
-            if (r > r_max) r_max = r;
-        }
-
-        int32_t l_delta = l_max - l_min;
-        int32_t r_delta = r_max - r_min;
-
-        bool left_active  = l_delta > 10;
-        bool right_active = r_delta > 10;
-
-        if (left_active && !right_active) {
-            s_chan_mode = CHAN_LEFT;
-            Serial.printf("[Mic Diag] Auto-detected I2S Channel: LEFT (L/R=GND). Right silent.\n");
-        } else if (right_active && !left_active) {
-            s_chan_mode = CHAN_RIGHT;
-            Serial.printf("[Mic Diag] Auto-detected I2S Channel: RIGHT (L/R=VDD). Left silent.\n");
-        } else if (!left_active && !right_active) {
-            s_chan_mode = CHAN_LEFT;
-            Serial.printf("[Mic Diag] WARNING: BOTH CHANNELS DEAD (Flatline %d). Check wiring/MIC_TYPE_PDM!\n", (int)l_min);
-        } else {
-            s_chan_mode = CHAN_BOTH;
-            Serial.println("[Mic Diag] Auto-detected I2S Channel: BOTH channels active.");
-        }
-    }
-
-    for (size_t i = 0; i < pair_count; i++) {
-        /* Convert 24-bit MEMS sample in 32-bit slot to 16-bit PCM sample */
-        int32_t l32 = stereo32[2 * i] >> 14;
-        int32_t r32 = stereo32[2 * i + 1] >> 14;
-
-        int16_t l = (l32 > INT16_MAX) ? INT16_MAX : ((l32 < INT16_MIN) ? INT16_MIN : (int16_t)l32);
-        int16_t r = (r32 > INT16_MAX) ? INT16_MAX : ((r32 < INT16_MIN) ? INT16_MIN : (int16_t)r32);
-
-        if (s_chan_mode == CHAN_RIGHT) {
-            mono[i] = r;
-        } else if (s_chan_mode == CHAN_BOTH) {
-            mono[i] = (int16_t)(((int32_t)l + (int32_t)r) / 2);
-        } else {
-            mono[i] = l;
-        }
-    }
-
-    return pair_count * sizeof(int16_t);
-#endif
 }
-
-// ── Real-time DC Removal & Gain Filter ────────────────────────────────────
 
 static void process_audio_samples(uint8_t * buf, size_t len)
 {
@@ -268,7 +179,6 @@ static void process_audio_samples(uint8_t * buf, size_t len)
 
     if (count == 0) return;
 
-    /* Initialize DC estimate on first valid sample to avoid step-response pop */
     if (!s_dc_init) {
         s_dc_estimate = (float)samples[0];
         s_dc_init = true;
@@ -282,11 +192,10 @@ static void process_audio_samples(uint8_t * buf, size_t len)
         if (raw < raw_min) raw_min = raw;
         if (raw > raw_max) raw_max = raw;
 
-        /* Exponential Moving Average to track and subtract DC offset */
+        /* High-pass DC tracking filter */
         s_dc_estimate = (0.98f * s_dc_estimate) + (0.02f * (float)raw);
         float clean_ac = (float)raw - s_dc_estimate;
 
-        /* Apply Digital Gain to pure AC signal */
         int32_t amplified = (int32_t)(clean_ac * MIC_DIGITAL_GAIN);
         if (amplified > INT16_MAX) amplified = INT16_MAX;
         else if (amplified < INT16_MIN) amplified = INT16_MIN;
@@ -297,23 +206,12 @@ static void process_audio_samples(uint8_t * buf, size_t len)
         if (abs_sample > s_peak_sample) s_peak_sample = abs_sample;
     }
 
-    /* Print diagnostic info every 1 second while recording */
     if (millis() - s_last_debug_ms > 1000) {
         s_last_debug_ms = millis();
-        if (raw_min == raw_max) {
-#if MIC_TYPE_PDM
-            Serial.printf("[Mic Diag WARNING] Flatline at %d! NO AUDIO. Check if mic is standard I2S (not PDM) or wiring.\n", raw_min);
-#else
-            Serial.printf("[Mic Diag WARNING] Flatline at %d! NO AUDIO. Check if mic is PDM (not standard I2S) or wiring.\n", raw_min);
-#endif
-        } else {
-            Serial.printf("[Mic Diag] Raw Range: [%d to %d] | Est. DC Bias: %.1f | AC Peak: %d\n",
-                          raw_min, raw_max, s_dc_estimate, s_peak_sample);
-        }
+        Serial.printf("[Mic Diag] Raw Range: [%d to %d] | Est. DC Bias: %.1f | AC Peak: %d\n",
+                      raw_min, raw_max, s_dc_estimate, s_peak_sample);
     }
 }
-
-// ── WAV Header ────────────────────────────────────────────────────────────
 
 static void write_wav_header(File &f, uint32_t audio_bytes)
 {
@@ -335,11 +233,9 @@ static void write_wav_header(File &f, uint32_t audio_bytes)
     f.write((const uint8_t *)&h, sizeof(h));
 }
 
-// ── Public API ────────────────────────────────────────────────────────────
-
 void micCaptureInit()
 {
-    /* Enable onboard microphone power/mux line via GPIO 45 (1 = MIC, 0 = WM) */
+    /* Pull GPIO 45 HIGH to route hardware line to MIC (1 = MIC, 0 = WM) */
     pinMode(45, OUTPUT);
     digitalWrite(45, HIGH);
     Serial.println("[Mic] GPIO 45 pulled HIGH to enable onboard microphone.");
@@ -391,10 +287,7 @@ void micCaptureHandle()
     i2s_read(MIC_I2S_PORT, s_read_buf, sizeof(s_read_buf), &bytes_read, 0);
     if (bytes_read == 0) return;
 
-    /* De-interleave stereo input to mono & auto-detect active channel */
     size_t mono_len = deinterleave_pdm_samples(s_read_buf, bytes_read, s_mono_buf);
-
-    /* Process DC removal and gain on mono channel */
     process_audio_samples(s_mono_buf, mono_len);
 
     size_t space = MIC_MAX_RECORD_BYTES - s_audio_bytes;
