@@ -6,8 +6,8 @@ database:
   path: jarvis_edge.db
 ollama:
   host: http://localhost:11434
-  fast_model: phi4-mini
-  heavy_model: gemma3:27b
+  fast_model: phi4-mini:latest
+  heavy_model: gemma4:e4b
   request_timeout_seconds: 120
 asr:
   model_size: base
@@ -18,3 +18,10 @@ mqtt:
   port: 1883
   topic_feed: jarvis/ui/feed
   topic_focus: jarvis/ui/focus
+# Optional integration with a full JARVIS 3.0 instance (../../JARVIS/3dot0).
+# When enabled, voice transcripts are also delegated to the JARVIS agent loop
+# (tools + memory), and "Note" actions are forwarded into its journal.
+jarvis:
+  enabled: false
+  base_url: http://localhost:8000
+  api_prefix: /api/v1

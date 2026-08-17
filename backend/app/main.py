@@ -11,6 +11,7 @@ admin frontend (../frontend).
 import json
 import logging
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 
 from fastapi import BackgroundTasks, FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -18,12 +19,12 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlmodel import select
 
-from app import mqtt
+from app import jarvis_client, mqtt
 from app.asr import transcribe_wav
 from app.config import load_config, load_prompts, save_config, save_prompts
 from app.database import init_db, session_scope
 from app.llm import fast_reply, heavy_process, list_available_models
-from app.models import LogEntry
+from app.models import ActionEvent, FocusItem, LogEntry
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -63,6 +64,22 @@ async def health():
     return {"status": "ok"}
 
 
+def _publish_focus_from_db() -> None:
+    """Push the current top undone Focus items to the ESP32 over MQTT."""
+    cfg = load_config().get("mqtt", {})
+    with session_scope() as session:
+        items = session.exec(
+            select(FocusItem)
+            .where(FocusItem.done == False)  # noqa: E712
+            .order_by(FocusItem.position, FocusItem.id)
+            .limit(MAX_FOCUS_ITEMS)
+        ).all()
+        # id is included so the device can POST /focus/{id}/toggle when the
+        # user taps a row (see firmware/src/ui_screen_focus.cpp).
+        tasks = [{"id": item.id, "text": item.text} for item in items]
+    mqtt.publish(cfg.get("topic_focus", "jarvis/ui/focus"), {"tasks": tasks})
+
+
 async def _run_heavy(log_id: int, transcript: str) -> None:
     """Background task: heavy-tier structuring, run after the HTTP response is sent."""
     try:
@@ -84,14 +101,35 @@ async def _run_heavy(log_id: int, transcript: str) -> None:
             session.add(entry)
     logger.info("[Heavy] Log %s processed.", log_id)
 
-    # Push the extracted tasks to the ESP32's Daily Focus card (docs/sdd.txt 4.3).
+    # Persist extracted to-dos as real FocusItem rows (full CRUD via the
+    # Command Center) and push the current top-3 undone items over MQTT.
     try:
         tasks = json.loads(structured).get("tasks", [])
     except (json.JSONDecodeError, AttributeError):
-        logger.warning("[Heavy] Log %s did not return valid JSON — skipping MQTT push.", log_id)
+        logger.warning("[Heavy] Log %s did not return valid JSON — skipping Focus update.", log_id)
         return
-    cfg = load_config().get("mqtt", {})
-    mqtt.publish(cfg.get("topic_focus", "jarvis/ui/focus"), {"tasks": tasks[:MAX_FOCUS_ITEMS]})
+
+    if tasks:
+        with session_scope() as session:
+            max_pos = session.exec(select(FocusItem)).all()
+            next_pos = (max(fi.position for fi in max_pos) + 1) if max_pos else 0
+            for offset, task_text in enumerate(tasks):
+                session.add(FocusItem(
+                    text=task_text, source="ai", log_entry_id=log_id,
+                    position=next_pos + offset,
+                ))
+    _publish_focus_from_db()
+
+    # Optionally hand the same transcript to the full JARVIS 3.0 agent loop
+    # (tools + memory) so it can act on it beyond simple task extraction.
+    if jarvis_client.is_enabled():
+        jarvis_task_id = await jarvis_client.submit_task(transcript)
+        if jarvis_task_id is not None:
+            with session_scope() as session:
+                entry = session.get(LogEntry, log_id)
+                if entry:
+                    entry.jarvis_task_id = jarvis_task_id
+                    session.add(entry)
 
 
 @app.post("/upload/audio")
@@ -140,6 +178,204 @@ async def list_logs(limit: int = 20):
         return [e.model_dump(mode="json") for e in entries]
 
 
+@app.delete("/logs/{log_id}", status_code=204)
+async def delete_log(log_id: int):
+    with session_scope() as session:
+        entry = session.get(LogEntry, log_id)
+        if not entry:
+            raise HTTPException(404, "Log entry not found")
+        session.delete(entry)
+
+
+@app.delete("/logs")
+async def bulk_delete_logs():
+    """Clear the entire voice-log history (Command Center 'Clear History' action)."""
+    with session_scope() as session:
+        entries = session.exec(select(LogEntry)).all()
+        count = len(entries)
+        for entry in entries:
+            session.delete(entry)
+    return {"deleted": count}
+
+
+# ── Daily Focus (full CRUD — docs/sdd.txt 4.3) ───────────────────────────────
+
+class FocusCreate(BaseModel):
+    text: str
+
+
+class FocusUpdate(BaseModel):
+    text: str | None = None
+    done: bool | None = None
+    position: int | None = None
+
+
+@app.get("/focus")
+async def list_focus():
+    with session_scope() as session:
+        items = session.exec(
+            select(FocusItem).order_by(FocusItem.position, FocusItem.id)
+        ).all()
+        return [i.model_dump(mode="json") for i in items]
+
+
+@app.post("/focus", status_code=201)
+async def create_focus(payload: FocusCreate):
+    if not payload.text.strip():
+        raise HTTPException(422, "text is required")
+    with session_scope() as session:
+        existing = session.exec(select(FocusItem)).all()
+        # New manual items go to the front of the list.
+        min_pos = min((i.position for i in existing), default=0)
+        item = FocusItem(text=payload.text.strip(), source="manual", position=min_pos - 1)
+        session.add(item)
+        session.flush()
+        session.refresh(item)
+        result = item.model_dump(mode="json")
+    _publish_focus_from_db()
+    return result
+
+
+@app.patch("/focus/{item_id}")
+async def update_focus(item_id: int, payload: FocusUpdate):
+    with session_scope() as session:
+        item = session.get(FocusItem, item_id)
+        if not item:
+            raise HTTPException(404, "Focus item not found")
+        if payload.text is not None:
+            item.text = payload.text.strip()
+        if payload.done is not None:
+            item.done = payload.done
+        if payload.position is not None:
+            item.position = payload.position
+        session.add(item)
+        session.flush()
+        session.refresh(item)
+        result = item.model_dump(mode="json")
+    _publish_focus_from_db()
+    return result
+
+
+@app.post("/focus/{item_id}/toggle")
+async def toggle_focus(item_id: int):
+    """Convenience endpoint for the device — tapping a Daily Focus row calls this."""
+    with session_scope() as session:
+        item = session.get(FocusItem, item_id)
+        if not item:
+            raise HTTPException(404, "Focus item not found")
+        item.done = not item.done
+        session.add(item)
+        session.flush()
+        session.refresh(item)
+        result = item.model_dump(mode="json")
+    _publish_focus_from_db()
+    return result
+
+
+@app.delete("/focus/{item_id}", status_code=204)
+async def delete_focus(item_id: int):
+    with session_scope() as session:
+        item = session.get(FocusItem, item_id)
+        if not item:
+            raise HTTPException(404, "Focus item not found")
+        session.delete(item)
+    _publish_focus_from_db()
+
+
+# ── Action Grid (docs/sdd.txt 3 — mirrored by the device's Action Grid tile
+#    and the Command Center's quick-action buttons) ──────────────────────────
+
+VALID_ACTION_TYPES = {"time_track", "note", "alert", "dismiss"}
+
+
+class ActionPayload(BaseModel):
+    text: str | None = None
+
+
+@app.post("/actions/{action_type}")
+async def trigger_action(action_type: str, payload: ActionPayload = ActionPayload()):
+    if action_type not in VALID_ACTION_TYPES:
+        raise HTTPException(404, f"Unknown action '{action_type}'")
+
+    text = (payload.text or "").strip()
+    cfg = load_config().get("mqtt", {})
+    feed_topic = cfg.get("topic_feed", "jarvis/ui/feed")
+    jarvis_synced = False
+
+    if action_type == "time_track":
+        now = datetime.now(timezone.utc).astimezone()
+        feed_text = f"Time tracked at {now.strftime('%H:%M')}."
+        mqtt.publish(feed_topic, {"text": feed_text})
+
+    elif action_type == "note":
+        if not text:
+            raise HTTPException(422, "text is required for a note")
+        mqtt.publish(feed_topic, {"text": "Note saved."})
+        if jarvis_client.is_enabled():
+            jarvis_synced = await jarvis_client.submit_journal_note("Edge Node Note", text)
+
+    elif action_type == "alert":
+        if not text:
+            raise HTTPException(422, "text is required for an alert")
+        mqtt.publish(feed_topic, {"text": f"\u26a0 {text}"})
+
+    elif action_type == "dismiss":
+        mqtt.publish(feed_topic, {"text": "Jarvis is ready."})
+
+    with session_scope() as session:
+        event = ActionEvent(action_type=action_type, text=text, jarvis_synced=jarvis_synced)
+        session.add(event)
+        session.flush()
+        session.refresh(event)
+        result = event.model_dump(mode="json")
+    return result
+
+
+@app.get("/actions")
+async def list_actions(limit: int = 50):
+    with session_scope() as session:
+        events = session.exec(
+            select(ActionEvent).order_by(ActionEvent.id.desc()).limit(limit)
+        ).all()
+        return [e.model_dump(mode="json") for e in events]
+
+
+@app.delete("/actions/{event_id}", status_code=204)
+async def delete_action(event_id: int):
+    with session_scope() as session:
+        event = session.get(ActionEvent, event_id)
+        if not event:
+            raise HTTPException(404, "Action event not found")
+        session.delete(event)
+
+
+@app.delete("/actions")
+async def bulk_delete_actions():
+    with session_scope() as session:
+        events = session.exec(select(ActionEvent)).all()
+        count = len(events)
+        for event in events:
+            session.delete(event)
+    return {"deleted": count}
+
+
+# ── JARVIS 3.0 integration (optional — app/jarvis_client.py) ─────────────────
+
+@app.get("/jarvis/status")
+async def jarvis_status():
+    cfg = load_config().get("jarvis", {})
+    if not cfg.get("enabled"):
+        return {"enabled": False, "connected": False}
+    check = await jarvis_client.check_connection()
+    return {"enabled": True, **check}
+
+
+@app.get("/jarvis/feed")
+async def jarvis_feed(limit: int = 20):
+    """Read-only mirror of the JARVIS 3.0 feed, for the Command Center's JARVIS tab."""
+    return await jarvis_client.get_recent_feed(limit)
+
+
 # ── Settings / Prompts (Phase 5 — Vite Command Center) ──────────────────────
 
 class SettingsUpdate(BaseModel):
@@ -147,6 +383,8 @@ class SettingsUpdate(BaseModel):
     heavy_model: str | None = None
     mqtt_host: str | None = None
     mqtt_port: int | None = None
+    jarvis_enabled: bool | None = None
+    jarvis_base_url: str | None = None
 
 
 class PromptsUpdate(BaseModel):
@@ -160,11 +398,14 @@ async def get_settings():
     cfg = load_config()
     ollama_cfg = cfg.get("ollama", {})
     mqtt_cfg = cfg.get("mqtt", {})
+    jarvis_cfg = cfg.get("jarvis", {})
     return {
         "fast_model": ollama_cfg.get("fast_model"),
         "heavy_model": ollama_cfg.get("heavy_model"),
         "mqtt_host": mqtt_cfg.get("host"),
         "mqtt_port": mqtt_cfg.get("port"),
+        "jarvis_enabled": jarvis_cfg.get("enabled", False),
+        "jarvis_base_url": jarvis_cfg.get("base_url", ""),
     }
 
 
@@ -174,6 +415,7 @@ async def update_settings(update: SettingsUpdate):
     cfg = load_config()
     ollama_cfg = cfg.setdefault("ollama", {})
     mqtt_cfg = cfg.setdefault("mqtt", {})
+    jarvis_cfg = cfg.setdefault("jarvis", {})
 
     if update.fast_model is not None:
         ollama_cfg["fast_model"] = update.fast_model
@@ -187,6 +429,11 @@ async def update_settings(update: SettingsUpdate):
     if update.mqtt_port is not None and update.mqtt_port != mqtt_cfg.get("port"):
         mqtt_cfg["port"] = update.mqtt_port
         mqtt_changed = True
+
+    if update.jarvis_enabled is not None:
+        jarvis_cfg["enabled"] = update.jarvis_enabled
+    if update.jarvis_base_url is not None:
+        jarvis_cfg["base_url"] = update.jarvis_base_url
 
     save_config(cfg)
 

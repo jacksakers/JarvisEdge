@@ -5,11 +5,14 @@
 
 #include "ui_screen_focus.h"
 #include "ui.h"
+#include "edge_api.h"
 #include <string.h>
 
 static lv_obj_t * s_item_labels[UI_FOCUS_ITEM_COUNT];
+static lv_obj_t * s_item_rows[UI_FOCUS_ITEM_COUNT];
 static char        s_item_text[UI_FOCUS_ITEM_COUNT][64];
 static bool        s_item_done[UI_FOCUS_ITEM_COUNT];
+static int         s_item_id[UI_FOCUS_ITEM_COUNT];   // backend FocusItem.id, -1 = unsynced
 
 // Re-applies text + strike-through style for one slot from local state.
 static void refresh_item(int idx)
@@ -25,12 +28,30 @@ static void refresh_item(int idx)
     }
 }
 
+// Quick scale/opacity "pop" so a tap always feels responsive even before
+// the fire-and-forget backend call resolves.
+static void anim_opa_cb(void * obj, int32_t v) { lv_obj_set_style_opa((lv_obj_t *)obj, (lv_opa_t)v, 0); }
+
+static void play_tap_feedback(lv_obj_t * row)
+{
+    lv_anim_t a;
+    lv_anim_init(&a);
+    lv_anim_set_var(&a, row);
+    lv_anim_set_exec_cb(&a, anim_opa_cb);
+    lv_anim_set_values(&a, LV_OPA_50, LV_OPA_COVER);
+    lv_anim_set_duration(&a, 180);
+    lv_anim_start(&a);
+}
+
 static void item_clicked_ev(lv_event_t * e)
 {
     int idx = (int)(intptr_t)lv_event_get_user_data(e);
-    // Phase 1: local-only toggle. Later phases will also notify the server.
     s_item_done[idx] = !s_item_done[idx];
     refresh_item(idx);
+    play_tap_feedback(s_item_rows[idx]);
+    // Optimistic — the UI already reflects the toggle; sync to the server
+    // in the background so a Command Center viewer sees it too.
+    edgeApiToggleFocus(s_item_id[idx]);
 }
 
 void uiFocusScreenInit(lv_obj_t * tile)
@@ -55,6 +76,7 @@ void uiFocusScreenInit(lv_obj_t * tile)
         strncpy(s_item_text[i], placeholders[i], sizeof(s_item_text[i]) - 1);
         s_item_text[i][sizeof(s_item_text[i]) - 1] = '\0';
         s_item_done[i] = false;
+        s_item_id[i] = -1;
 
         lv_obj_t * row = lv_obj_create(tile);
         lv_obj_set_size(row, UI_SCREEN_W - 40, 60);
@@ -63,6 +85,7 @@ void uiFocusScreenInit(lv_obj_t * tile)
         lv_obj_add_flag(row, LV_OBJ_FLAG_CLICKABLE);
         lv_obj_set_style_bg_color(row, lv_color_hex(UI_CLR_SURFACE), 0);
         lv_obj_set_style_bg_opa(row, LV_OPA_COVER, 0);
+        lv_obj_set_style_bg_color(row, lv_color_hex(0x22222E), LV_PART_MAIN | LV_STATE_PRESSED);
         lv_obj_set_style_border_width(row, 0, 0);
         lv_obj_set_style_radius(row, 10, 0);
         lv_obj_add_event_cb(row, item_clicked_ev, LV_EVENT_CLICKED, (void *)(intptr_t)i);
@@ -73,6 +96,7 @@ void uiFocusScreenInit(lv_obj_t * tile)
         lv_obj_set_style_text_font(lbl, &lv_font_montserrat_16, 0);
         lv_obj_center(lbl);
         s_item_labels[i] = lbl;
+        s_item_rows[i] = row;
         refresh_item(i);
     }
 }
@@ -83,5 +107,16 @@ void uiFocusSetItem(int idx, const char * text)
     strncpy(s_item_text[idx], text, sizeof(s_item_text[idx]) - 1);
     s_item_text[idx][sizeof(s_item_text[idx]) - 1] = '\0';
     s_item_done[idx] = false;
+    s_item_id[idx] = -1;
+    if(s_item_labels[idx]) refresh_item(idx);
+}
+
+void uiFocusSetItemSynced(int idx, int id, const char * text)
+{
+    if(idx < 0 || idx >= UI_FOCUS_ITEM_COUNT || !text) return;
+    strncpy(s_item_text[idx], text, sizeof(s_item_text[idx]) - 1);
+    s_item_text[idx][sizeof(s_item_text[idx]) - 1] = '\0';
+    s_item_done[idx] = false;
+    s_item_id[idx] = id;
     if(s_item_labels[idx]) refresh_item(idx);
 }

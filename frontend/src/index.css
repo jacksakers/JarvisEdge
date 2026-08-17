@@ -1,111 +1,98 @@
-:root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --social-bg: rgba(244, 243, 236, 0.5);
-  --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+@import "tailwindcss";
 
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
+/* ── Design tokens — shared palette with the JARVIS 3.0 Command Center ─────── */
+@theme {
+  --color-jarvis-bg:            #020917;
+  --color-jarvis-surface:       #0a1628;
+  --color-jarvis-card:          #0f1e35;
+  --color-jarvis-border:        rgba(6, 182, 212, 0.18);
+  --color-jarvis-border-bright: rgba(6, 182, 212, 0.5);
+  --color-jarvis-cyan:          #06b6d4;
+  --color-jarvis-cyan-bright:   #22d3ee;
+  --color-jarvis-purple:        #a855f7;
+  --color-jarvis-amber:         #f59e0b;
+  --color-jarvis-red:           #ef4444;
+  --color-jarvis-green:         #22c55e;
+  --color-jarvis-text:          #cbd5e1;
+  --color-jarvis-muted:         #475569;
+  --color-jarvis-dim:           #1e3a5f;
 
-  font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
-  color-scheme: light dark;
-  color: var(--text);
-  background: var(--bg);
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  --font-family-sans: Inter, system-ui, sans-serif;
+  --font-family-mono: "JetBrains Mono", "Fira Code", monospace;
 
-  @media (max-width: 1024px) {
-    font-size: 16px;
-  }
+  --animate-pulse-glow:  pulse-glow  2s ease-in-out infinite;
+  --animate-slide-up:    slide-up    0.25s ease-out;
+  --animate-fade-in:     fade-in     0.2s ease-out;
+  --animate-float:       float       4s ease-in-out infinite;
+  --animate-bar:         bar-bounce  1s ease-in-out infinite;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
-  }
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 4px rgba(6,182,212,0.3); }
+  50%       { box-shadow: 0 0 16px rgba(6,182,212,0.7), 0 0 32px rgba(6,182,212,0.2); }
+}
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(-6px); }
+}
+@keyframes bar-bounce {
+  0%, 100% { transform: scaleY(0.3); }
+  50%       { transform: scaleY(1); }
+}
 
-  #social .button-icon {
-    filter: invert(1) brightness(2);
-  }
+html, body, #root {
+  height: 100%;
+  background-color: #020917;
+  margin: 0;
 }
 
 body {
-  margin: 0;
+  font-family: var(--font-family-sans);
 }
 
-#root {
-  width: 1126px;
-  max-width: 100%;
-  margin: 0 auto;
-  text-align: center;
-  border-inline: 1px solid var(--border);
-  min-height: 100svh;
-  display: flex;
-  flex-direction: column;
-  box-sizing: border-box;
+::-webkit-scrollbar       { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(6,182,212,0.25); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(6,182,212,0.5); }
+
+.bg-grid {
+  background-image:
+    linear-gradient(rgba(6,182,212,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(6,182,212,0.04) 1px, transparent 1px);
+  background-size: 40px 40px;
 }
 
-h1,
-h2 {
-  font-family: var(--heading);
-  font-weight: 500;
-  color: var(--text-h);
+.bg-hex-glow {
+  background: radial-gradient(ellipse at top, rgba(6,182,212,0.07) 0%, transparent 60%);
 }
 
-h1 {
-  font-size: 56px;
-  letter-spacing: -1.68px;
-  margin: 32px 0;
-  @media (max-width: 1024px) {
-    font-size: 36px;
-    margin: 20px 0;
-  }
-}
-h2 {
-  font-size: 24px;
-  line-height: 118%;
-  letter-spacing: -0.24px;
-  margin: 0 0 8px;
-  @media (max-width: 1024px) {
-    font-size: 20px;
-  }
-}
-p {
-  margin: 0;
+.glass {
+  background: rgba(10, 22, 40, 0.85);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(6, 182, 212, 0.18);
 }
 
-code,
-.counter {
-  font-family: var(--mono);
-  display: inline-flex;
-  border-radius: 4px;
-  color: var(--text-h);
+.glow-border { transition: border-color 0.2s, box-shadow 0.2s; }
+.glow-border:hover {
+  border-color: rgba(6, 182, 212, 0.5);
+  box-shadow: 0 0 12px rgba(6, 182, 212, 0.15);
 }
 
-code {
-  font-size: 15px;
-  line-height: 135%;
-  padding: 4px 8px;
-  background: var(--code-bg);
+.text-glow { text-shadow: 0 0 8px rgba(6,182,212,0.6); }
+
+/* Waveform bars — used by the voice-log "audio activity" indicator */
+.wave-bar {
+  width: 3px;
+  border-radius: 2px;
+  background: linear-gradient(to top, #06b6d4, #22d3ee);
+  animation: bar-bounce 1s ease-in-out infinite;
 }
+

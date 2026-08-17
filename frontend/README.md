@@ -1,16 +1,37 @@
-# React + Vite
+# Jarvis Edge — Command Center (frontend)
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+The web dashboard for a Jarvis Edge node. It talks to the FastAPI [backend](../backend/README.md)
+over plain HTTP and gives you full control of the device from a browser: live feed, daily focus
+CRUD, the action grid, voice log history, and JARVIS 3.0 integration status/settings.
 
-Currently, two official plugins are available:
+Built with React 19 + Vite, Tailwind CSS v4, `react-router-dom`, `framer-motion` and `lucide-react`,
+using the same dark "jarvis-*" design tokens (cyan glass panels, subtle grid background, glow
+accents) as the JARVIS 3.0 Command Center, for a consistent look across the whole framework.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Pages
 
-## React Compiler
+| Route       | Purpose                                                                 |
+|------------|---------------------------------------------------------------------------|
+| `/`         | Jarvis Feed — shows the latest transcript/response, a decorative activity waveform, and one-tap Quick Actions (Time Track / Note / Alert / Dismiss). |
+| `/focus`    | Daily Focus — full CRUD (add, edit inline, toggle done, delete) for the items pushed to the device's Daily Focus tile over MQTT. |
+| `/actions`  | Action Grid — trigger actions from the browser and view/delete the action history. |
+| `/logs`     | Voice Logs — browse transcripts, fast responses, structured data and JARVIS task links. Raw audio is never stored server-side. |
+| `/jarvis`   | JARVIS Link — connection status to a full JARVIS 3.0 instance and a read-only mirror of its feed. |
+| `/prompts`  | Edit the fast-tier and heavy-tier system prompts used by the backend LLM calls. |
+| `/settings` | Ollama model selection, MQTT broker config, and JARVIS 3.0 enable/base URL + test connection. |
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Configuring the backend URL
 
-## Expanding the Oxlint configuration
+The backend host is not baked in at build time — it's stored in `localStorage`
+(`jarvis_backend_url`) so the same static build can point at any Edge Node on your network.
+Click the URL pill in the top-right of the header to change it (defaults to
+`http://localhost:8010`).
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+## Development
+
+```bash
+npm install
+npm run dev      # http://localhost:5180
+npm run build    # production build to dist/
+```
+

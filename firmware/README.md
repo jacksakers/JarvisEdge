@@ -60,6 +60,7 @@ settings.h/.cpp        SD-backed (/settings/jarvis.txt) runtime-editable setting
 wifi_manager.h/.cpp    Non-blocking WiFi connect + status bar icon updates; wifiManagerReconnect() for Settings save
 mqtt_client.h/.cpp     PubSubClient subscribe to jarvis/ui/feed + jarvis/ui/focus, updates UI tiles; mqttClientReconnect() for Settings save
 sync_manager.h/.cpp    Core-0 FreeRTOS task: uploads queued /queue/*.wav to the backend, deletes on success
+edge_api.h/.cpp        Fire-and-forget POSTs to the backend (focus toggle, action triggers) from Core-0 FreeRTOS tasks so LVGL taps never block on HTTP
 ```
 
 ### UI shell (docs/sdd.txt section 3)
@@ -126,9 +127,21 @@ WiFi icon on connect/disconnect transitions. `mqtt_client` then subscribes to
 two topics the backend publishes on:
 
 ```
-jarvis/ui/feed  -> {"text": "..."}          -> uiFeedSetText()
-jarvis/ui/focus -> {"tasks": ["...", ...]}  -> uiFocusSetItem(0..2, ...)
+jarvis/ui/feed  -> {"text": "..."}                                  -> uiFeedSetText()
+jarvis/ui/focus -> {"tasks": [{"id": 1, "text": "..."}, ...]}       -> uiFocusSetItemSynced(0..2, id, text)
 ```
+
+Each focus task carries the backend `FocusItem.id`. Tapping a Daily Focus
+row on-device optimistically strikes it through locally and fires
+`edgeApiToggleFocus(id)` (via `edge_api.cpp`, on its own short-lived Core-0
+task) so `POST /focus/{id}/toggle` runs in the background without blocking
+the UI thread — the Command Center and any other viewer then see the same
+state over MQTT.
+
+The Action Grid tile works the same way: tapping Time Track/Dismiss fires
+`edgeApiTriggerAction(type, "")` immediately, while Note/Alert pop an
+`lv_keyboard` overlay (built in `ui_screen_actions.cpp`) so you can type
+before it POSTs to `/actions/{action_type}`.
 
 Separately, `sync_manager` runs its own FreeRTOS task pinned to core 0 (like
 the mic capture writer). Every 15s it checks WiFi is up, the SD card is

@@ -1,5 +1,9 @@
 import { useEffect, useState } from 'react'
+import { Loader2 } from 'lucide-react'
 import { api } from '../api.js'
+
+const textareaClass =
+  'w-full bg-jarvis-bg border border-jarvis-border rounded-lg px-3 py-2.5 text-sm text-white outline-none focus:border-jarvis-cyan/50 font-mono resize-y'
 
 export default function PromptsPage() {
   const [prompts, setPrompts] = useState(null)
@@ -24,12 +28,13 @@ export default function PromptsPage() {
   }
 
   async function save() {
-    setStatus('Saving...')
+    setStatus('Saving…')
     setError('')
     try {
       const updated = await api.updatePrompts(prompts)
       setPrompts(updated)
       setStatus('Saved.')
+      setTimeout(() => setStatus(''), 2000)
     } catch (e) {
       setError(e.message)
       setStatus('')
@@ -38,40 +43,55 @@ export default function PromptsPage() {
 
   if (error) {
     return (
-      <div className="panel">
-        <p className="error">Failed to load prompts: {error}</p>
-        <button onClick={load}>Retry</button>
+      <div className="max-w-2xl mx-auto glass rounded-xl p-6">
+        <p className="text-jarvis-red text-sm">Failed to load prompts: {error}</p>
+        <button onClick={load} className="mt-3 text-xs text-jarvis-cyan-bright">
+          Retry
+        </button>
       </div>
     )
   }
 
-  if (!prompts) return <p>Loading prompts…</p>
+  if (!prompts) {
+    return (
+      <div className="flex justify-center py-16 text-jarvis-muted">
+        <Loader2 size={20} className="animate-spin" />
+      </div>
+    )
+  }
 
   return (
-    <div className="panel">
-      <h2>Prompts</h2>
+    <div className="max-w-2xl mx-auto space-y-6 animate-fade-in">
+      <h1 className="text-lg font-semibold text-white">Prompts</h1>
 
-      <label>
-        Fast-tier system prompt
+      <section className="glass rounded-2xl p-5 space-y-2">
+        <span className="block text-xs text-jarvis-muted">Fast-tier system prompt</span>
         <textarea
           rows={6}
           value={prompts.fast_system_prompt || ''}
           onChange={(e) => update('fast_system_prompt', e.target.value)}
+          className={textareaClass}
         />
-      </label>
+      </section>
 
-      <label>
-        Heavy-tier system prompt
+      <section className="glass rounded-2xl p-5 space-y-2">
+        <span className="block text-xs text-jarvis-muted">Heavy-tier system prompt</span>
         <textarea
-          rows={10}
+          rows={12}
           value={prompts.heavy_system_prompt || ''}
           onChange={(e) => update('heavy_system_prompt', e.target.value)}
+          className={textareaClass}
         />
-      </label>
+      </section>
 
-      <div className="actions">
-        <button onClick={save}>Save</button>
-        {status && <span className="status">{status}</span>}
+      <div className="flex items-center gap-3">
+        <button
+          onClick={save}
+          className="bg-jarvis-cyan/15 border border-jarvis-cyan/40 text-jarvis-cyan-bright rounded-lg px-5 py-2 text-sm hover:bg-jarvis-cyan/25"
+        >
+          Save Prompts
+        </button>
+        {status && <span className="text-xs text-jarvis-muted">{status}</span>}
       </div>
     </div>
   )

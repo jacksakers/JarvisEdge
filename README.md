@@ -22,7 +22,7 @@ JarvisEdge/
   docs/        System design, coding standards, and phased plan
   firmware/    ESP32-S3 PlatformIO project (LovyanGFX + LVGL UI shell)
   backend/     FastAPI home-server backend (audio ingestion, ASR, dual-tier LLM routing)
-  frontend/    Vite + React admin frontend ("Command Center": Settings/Prompts/Data)
+  frontend/    Vite + React admin frontend ("Command Center": Feed/Focus/Actions/Logs/JARVIS/Prompts/Settings)
 ```
 
 ## Quickstart
@@ -78,3 +78,31 @@ from the device itself (see firmware/README.md); the backend exposes
 [frontend/](frontend) is a Vite + React app with Settings/Prompts/Data
 pages consuming those endpoints. Run it with `cd frontend && npm install &&
 npm run dev`.
+
+**Phase 6 — Full CRUD, JARVIS 3.0 integration & Command Center rebuild: implemented.**
+The Daily Focus and Action Grid tiles now actually do something end-to-end:
+
+- **Backend** gained full CRUD for `FocusItem` (`/focus*`) and `ActionEvent`
+  (`/actions/*`), plus an optional best-effort bridge to a full JARVIS 3.0
+  instance (`app/jarvis_client.py`, `/jarvis/status`, `/jarvis/feed`) —
+  notes can be forwarded to JARVIS's journal and heavy-tier tasks can be
+  delegated to it. See [backend/README.md](backend/README.md).
+- **Firmware** gained `edge_api.h`/`.cpp`, a small fire-and-forget HTTP
+  client (Core-0 FreeRTOS tasks) so tapping a Daily Focus item or an Action
+  Grid tile actually calls the backend instead of just updating local state.
+  Daily Focus items now carry a backend id (via the `jarvis/ui/focus` MQTT
+  payload) so a tap syncs back with `POST /focus/{id}/toggle`; Note/Alert
+  tiles pop an on-device keyboard overlay before POSTing to
+  `/actions/{action_type}`. See [firmware/README.md](firmware/README.md).
+- **Frontend** was fully rebuilt as a proper Command Center: a
+  glass/cyan design system shared with JARVIS 3.0, client-side routing
+  (`react-router-dom`), and dedicated pages for the live Jarvis Feed +
+  quick actions, Daily Focus CRUD, the Action Grid (trigger + history),
+  Voice Logs, JARVIS 3.0 link status, Prompts, and Settings (now including
+  the JARVIS enable/base-URL fields and a Test Connection button). See
+  [frontend/README.md](frontend/README.md).
+
+Note: raw audio is deleted from the device queue and the backend right
+after transcription (privacy-by-design), so there's no stored audio to
+visualize — the frontend's "waveform" is a decorative activity indicator
+tied to log status, not a literal recording playback.

@@ -1,4 +1,4 @@
-// Simple fetch wrapper for the JarvisEdge backend.
+// Fetch wrapper for the JarvisEdge backend (../backend/app/main.py).
 // The backend host is configurable at runtime (stored in localStorage) since
 // this is a local-network admin tool and the backend IP/port can vary
 // between deployments.
@@ -22,15 +22,40 @@ async function request(path, options = {}) {
     const text = await res.text().catch(() => '')
     throw new Error(`${options.method || 'GET'} ${path} failed: ${res.status} ${text}`)
   }
+  if (res.status === 204) return null
   return res.json()
 }
 
 export const api = {
+  // System
+  getHealth: () => request('/health'),
+
+  // Settings / Prompts
   getSettings: () => request('/settings'),
   updateSettings: (body) => request('/settings', { method: 'PUT', body: JSON.stringify(body) }),
   getModels: () => request('/models'),
   getPrompts: () => request('/prompts'),
   updatePrompts: (body) => request('/prompts', { method: 'PUT', body: JSON.stringify(body) }),
+
+  // Voice logs
   getLogs: (limit = 20) => request(`/logs?limit=${limit}`),
-  getHealth: () => request('/health'),
+  deleteLog: (id) => request(`/logs/${id}`, { method: 'DELETE' }),
+  clearLogs: () => request('/logs', { method: 'DELETE' }),
+
+  // Daily Focus (full CRUD)
+  getFocus: () => request('/focus'),
+  createFocus: (text) => request('/focus', { method: 'POST', body: JSON.stringify({ text }) }),
+  updateFocus: (id, body) => request(`/focus/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  toggleFocus: (id) => request(`/focus/${id}/toggle`, { method: 'POST' }),
+  deleteFocus: (id) => request(`/focus/${id}`, { method: 'DELETE' }),
+
+  // Action Grid
+  triggerAction: (type, text = '') => request(`/actions/${type}`, { method: 'POST', body: JSON.stringify({ text }) }),
+  getActions: (limit = 50) => request(`/actions?limit=${limit}`),
+  deleteAction: (id) => request(`/actions/${id}`, { method: 'DELETE' }),
+  clearActions: () => request('/actions', { method: 'DELETE' }),
+
+  // JARVIS 3.0 integration
+  getJarvisStatus: () => request('/jarvis/status'),
+  getJarvisFeed: (limit = 20) => request(`/jarvis/feed?limit=${limit}`),
 }

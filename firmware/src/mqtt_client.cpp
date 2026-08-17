@@ -36,12 +36,15 @@ static void handle_focus_payload(const uint8_t * payload, unsigned int len)
     JsonDocument doc;
     if (deserializeJson(doc, payload, len) != DeserializationError::Ok) return;
 
+    // Payload shape: {"tasks": [{"id": 3, "text": "..."}, ...]}
+    // (see _publish_focus_from_db() in ../../backend/app/main.py)
     JsonArrayConst tasks = doc["tasks"].as<JsonArrayConst>();
     for (int i = 0; i < UI_FOCUS_ITEM_COUNT; i++) {
         if (i < (int)tasks.size()) {
-            uiFocusSetItem(i, tasks[i].as<const char *>());
+            int id = tasks[i]["id"] | -1;
+            uiFocusSetItemSynced(i, id, tasks[i]["text"] | "");
         } else {
-            uiFocusSetItem(i, "\u2014");
+            uiFocusSetItemSynced(i, -1, "\u2014");
         }
     }
 }
