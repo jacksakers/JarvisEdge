@@ -25,11 +25,8 @@ static char s_mqtt_host[64]     = "";
 static int  s_mqtt_port         = 0;
 
 static bool s_ambient_vad       = false;
-
 static bool s_power_saving      = false;
-
 static int  s_screen_off        = 30;
-
 static bool s_screen_lock       = false;
 
 
@@ -62,21 +59,13 @@ static void apply_kv(const char * key, const char * val)
         s_mqtt_port = atoi(val);
 
     } else if (strcmp(key, "ambient_vad_mode") == 0) {
-
         s_ambient_vad = (atoi(val) != 0);
-
     } else if (strcmp(key, "power_saving_mode") == 0) {
-
         s_power_saving = (atoi(val) != 0);
-
     } else if (strcmp(key, "screen_off_timeout") == 0) {
-
         s_screen_off = atoi(val);
-
     } else if (strcmp(key, "screen_lock_enabled") == 0) {
-
         s_screen_lock = (atoi(val) != 0);
-
     }
     /* Unknown keys are silently ignored for forwards compatibility */
 }

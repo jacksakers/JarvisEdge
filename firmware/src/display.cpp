@@ -6,9 +6,7 @@
 #include <lvgl.h>
 
 #include "display.h"
-
 #include "settings.h"
-
 #include "LovyanGFX_Driver.h"
 
 #include <Arduino.h>
@@ -41,11 +39,8 @@ static void my_disp_flush(lv_display_t * d, const lv_area_t * area, uint8_t * px
 }
 
 static uint32_t s_last_activity_ms = 0;
-
 static bool s_backlight_on = true;
-
 static bool s_screen_locked = false;
-
 
 static void my_touchpad_read(lv_indev_t * indev, lv_indev_data_t * data)
 
@@ -54,40 +49,25 @@ static void my_touchpad_read(lv_indev_t * indev, lv_indev_data_t * data)
     (void)indev;
 
     if(gfx.getTouch(&data->point.x, &data->point.y)) {
-
         s_last_activity_ms = millis();
-
         if (!s_backlight_on) {
-
             displaySetBacklight(true);
-
             if (settingsGetScreenLockEnabled()) {
-
                 s_screen_locked = true;
-
                 Serial.println("[Display] Woke up - Screen is locked.");
-
             }
 
             data->state = LV_INDEV_STATE_RELEASED;
 
             return;
-
         }
-
 
         if (s_screen_locked) {
-
             s_screen_locked = false;
-
             Serial.println("[Display] Screen unlocked.");
-
             data->state = LV_INDEV_STATE_RELEASED;
-
             return;
-
         }
-
 
         data->state = LV_INDEV_STATE_PRESSED;
 
@@ -145,34 +125,20 @@ void displaySetBacklight(bool on)
 {
 
     digitalWrite(DISPLAY_BACKLIGHT_PIN, on ? HIGH : LOW);
-
     s_backlight_on = on;
-
     if (on) {
-
         s_last_activity_ms = millis();
-
     }
-
 }
 
 
 void displayHandle(unsigned long now)
-
 {
-
     int timeout_sec = settingsGetScreenOffTimeout();
-
     if (s_backlight_on && timeout_sec > 0) {
-
         if (now - s_last_activity_ms > (unsigned long)timeout_sec * 1000UL) {
-
             Serial.println("[Display] Screen idle timeout - Turning backlight off.");
-
             displaySetBacklight(false);
-
         }
-
     }
-
 }

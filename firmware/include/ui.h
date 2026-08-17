@@ -31,7 +31,6 @@ enum ui_tile_id_t {
     UI_TILE_ACTIONS  = 2,
 
     UI_TILE_SETTINGS = 3,
-
     UI_TILE_LOGS     = 4,
 
 };
