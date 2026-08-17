@@ -29,9 +29,9 @@ directories here once started.
 
 ## Status
 
-**Phase 1 — Hardware Baseline & UI Shell: implemented.** See
-[firmware/README.md](firmware/README.md) for build instructions and
+**Phase 1 — Hardware Baseline & UI Shell: implemented.**
+**Phase 2 — Audio & Offline Mode ("Plaud" feature): implemented.**
+See [firmware/README.md](firmware/README.md) for build instructions and
 architecture notes.
 
-Phases 2-5 (offline audio queue, backend API, MQTT sync, admin frontend) are
-not yet started.
+Phases 3-5 (backend API, MQTT sync, admin frontend) are not yet started.

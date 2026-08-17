@@ -84,3 +84,8 @@ void initDisplay()
 
     Serial.println("[Display] Ready (480x320, RGB565, GT911 touch).");
 }
+
+void displaySetBacklight(bool on)
+{
+    digitalWrite(DISPLAY_BACKLIGHT_PIN, on ? HIGH : LOW);
+}
