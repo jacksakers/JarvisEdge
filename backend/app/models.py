@@ -13,6 +13,7 @@ class LogEntry(SQLModel, table=True):
     raw_text: str                      # Whisper transcription of the uploaded WAV
     fast_response: str = ""            # Fast-tier LLM confirmation (immediate)
     structured_data: Optional[str] = None  # Heavy-tier LLM JSON output (background)
+    audio_path: Optional[str] = None   # Saved WAV on disk (app/config.get_audio_dir), for playback
 
     # pending -> fast_done -> processed (or "failed" if the heavy tier errors)
     status: str = "pending"

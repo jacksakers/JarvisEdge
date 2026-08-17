@@ -18,6 +18,12 @@ mqtt:
   port: 1883
   topic_feed: jarvis/ui/feed
   topic_focus: jarvis/ui/focus
+# Raw WAVs are saved here after transcription so the Command Center's Voice
+# Logs page can play them back (useful for diagnosing mic/capture issues).
+# Set keep_files: false to delete audio immediately after transcription instead.
+audio:
+  path: audio_logs
+  keep_files: true
 # Optional integration with a full JARVIS 3.0 instance (../../JARVIS/3dot0).
 # When enabled, voice transcripts are also delegated to the JARVIS agent loop
 # (tools + memory), and "Note" actions are forwarded into its journal.

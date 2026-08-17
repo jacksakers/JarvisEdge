@@ -57,3 +57,12 @@ def get_db_path() -> str:
     if not os.path.isabs(db_path):
         return str(_HERE / db_path)
     return db_path
+
+
+def get_audio_dir() -> Path:
+    """Directory where uploaded WAVs are kept for playback (created on first use)."""
+    cfg = load_config()
+    audio_path = cfg.get("audio", {}).get("path", "audio_logs")
+    path = Path(audio_path) if os.path.isabs(audio_path) else (_HERE / audio_path)
+    path.mkdir(parents=True, exist_ok=True)
+    return path

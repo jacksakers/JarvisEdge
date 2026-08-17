@@ -10,18 +10,20 @@ admin frontend (../frontend).
 """
 import json
 import logging
+import os
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
+from typing import Optional
 
 from fastapi import BackgroundTasks, FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 from sqlmodel import select
 
 from app import jarvis_client, mqtt
 from app.asr import transcribe_wav
-from app.config import load_config, load_prompts, save_config, save_prompts
+from app.config import get_audio_dir, load_config, load_prompts, save_config, save_prompts
 from app.database import init_db, session_scope
 from app.llm import fast_reply, heavy_process, list_available_models
 from app.models import ActionEvent, FocusItem, LogEntry
@@ -147,11 +149,20 @@ async def upload_audio(background_tasks: BackgroundTasks, file: UploadFile = Fil
 
     response_text = await fast_reply(transcript)
 
+    # Kept on disk for the Command Center's audio playback (Voice Logs page) —
+    # handy for debugging mic/capture issues. Disable via config.yaml `audio.keep_files: false`.
+    keep_audio = load_config().get("audio", {}).get("keep_files", True)
+
     with session_scope() as session:
         entry = LogEntry(raw_text=transcript, fast_response=response_text, status="fast_done")
         session.add(entry)
         session.flush()
         log_id = entry.id
+        if keep_audio:
+            wav_path = get_audio_dir() / f"log_{log_id}.wav"
+            wav_path.write_bytes(audio_bytes)
+            entry.audio_path = str(wav_path)
+            session.add(entry)
 
     # Push the immediate confirmation to the ESP32's Jarvis Feed (docs/sdd.txt 4.2).
     cfg = load_config().get("mqtt", {})
@@ -178,12 +189,34 @@ async def list_logs(limit: int = 20):
         return [e.model_dump(mode="json") for e in entries]
 
 
+@app.get("/logs/{log_id}/audio")
+async def get_log_audio(log_id: int):
+    """Serve the raw WAV for a log entry, for the Voice Logs playback control."""
+    with session_scope() as session:
+        entry = session.get(LogEntry, log_id)
+        if not entry or not entry.audio_path:
+            raise HTTPException(404, "No audio saved for this log entry")
+        audio_path = entry.audio_path
+    if not os.path.exists(audio_path):
+        raise HTTPException(404, "Audio file missing on disk")
+    return FileResponse(audio_path, media_type="audio/wav", filename=f"log_{log_id}.wav")
+
+
+def _delete_audio_file(audio_path: Optional[str]) -> None:
+    if audio_path and os.path.exists(audio_path):
+        try:
+            os.remove(audio_path)
+        except OSError:
+            logger.warning("Could not remove audio file %s", audio_path)
+
+
 @app.delete("/logs/{log_id}", status_code=204)
 async def delete_log(log_id: int):
     with session_scope() as session:
         entry = session.get(LogEntry, log_id)
         if not entry:
             raise HTTPException(404, "Log entry not found")
+        _delete_audio_file(entry.audio_path)
         session.delete(entry)
 
 
@@ -194,6 +227,7 @@ async def bulk_delete_logs():
         entries = session.exec(select(LogEntry)).all()
         count = len(entries)
         for entry in entries:
+            _delete_audio_file(entry.audio_path)
             session.delete(entry)
     return {"deleted": count}
 

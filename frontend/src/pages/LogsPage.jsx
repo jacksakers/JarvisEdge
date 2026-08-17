@@ -47,6 +47,12 @@ function LogRow({ log, onDelete }) {
             className="overflow-hidden border-t border-jarvis-border"
           >
             <div className="px-4 py-3 space-y-3 text-xs">
+              {log.audio_path && (
+                <div>
+                  <div className="text-jarvis-muted uppercase tracking-widest text-[10px] mb-1">Recorded audio</div>
+                  <audio controls preload="none" src={api.getLogAudioUrl(log.id)} className="w-full h-8" />
+                </div>
+              )}
               <div>
                 <div className="text-jarvis-muted uppercase tracking-widest text-[10px] mb-1">Fast response</div>
                 <div className="text-jarvis-text">{log.fast_response || '—'}</div>
@@ -107,7 +113,7 @@ export default function LogsPage() {
         <div>
           <h1 className="text-lg font-semibold text-white">Voice Logs</h1>
           <p className="text-xs text-jarvis-muted mt-1">
-            Transcripts are kept; raw audio is discarded after transcription for privacy.
+            Raw audio is kept for playback/debugging (disable via backend config.yaml `audio.keep_files`).
           </p>
         </div>
         <div className="flex items-center gap-2">

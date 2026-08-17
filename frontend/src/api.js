@@ -41,6 +41,7 @@ export const api = {
   getLogs: (limit = 20) => request(`/logs?limit=${limit}`),
   deleteLog: (id) => request(`/logs/${id}`, { method: 'DELETE' }),
   clearLogs: () => request('/logs', { method: 'DELETE' }),
+  getLogAudioUrl: (id) => `${getBaseUrl()}/logs/${id}/audio`,
 
   // Daily Focus (full CRUD)
   getFocus: () => request('/focus'),
