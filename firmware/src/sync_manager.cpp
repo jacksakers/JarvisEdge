@@ -12,6 +12,7 @@
 
 #include "sync_manager.h"
 #include "network_config.h"
+#include "settings.h"
 #include "wifi_manager.h"
 #include "plaud_mode.h"
 #include "sd_card.h"
@@ -55,7 +56,7 @@ static bool upload_one(const String &path, size_t file_len)
     memcpy(body + head.length() + read_bytes, tail, tail_len);
 
     char url[96];
-    snprintf(url, sizeof(url), "http://%s:%d/upload/audio", JARVIS_BACKEND_HOST, JARVIS_BACKEND_PORT);
+    snprintf(url, sizeof(url), "http://%s:%d/upload/audio", settingsGetBackendHost(), settingsGetBackendPort());
 
     HTTPClient http;
     http.begin(url);

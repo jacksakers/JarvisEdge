@@ -5,6 +5,7 @@
 
 #include "wifi_manager.h"
 #include "network_config.h"
+#include "settings.h"
 #include "ui_status_bar.h"
 #include <Arduino.h>
 #include <WiFi.h>
@@ -13,14 +14,22 @@ static bool s_was_connected = false;
 
 void wifiManagerInit()
 {
-    if (strlen(JARVIS_WIFI_SSID) == 0) {
-        Serial.println("[WiFi] No SSID configured — skipping. Set JARVIS_WIFI_SSID in network_config.h.");
+    const char * ssid = settingsGetWifiSSID();
+    const char * pass = settingsGetWifiPassword();
+    if (!ssid || ssid[0] == '\0') {
+        Serial.println("[WiFi] No SSID configured — skipping. Set it via the on-device Settings tile.");
         return;
     }
 
-    Serial.printf("[WiFi] Starting background connection to: %s\n", JARVIS_WIFI_SSID);
+    Serial.printf("[WiFi] Starting background connection to: %s\n", ssid);
     WiFi.mode(WIFI_STA);
-    WiFi.begin(JARVIS_WIFI_SSID, JARVIS_WIFI_PASSWORD);
+    WiFi.begin(ssid, pass);
+}
+
+void wifiManagerReconnect()
+{
+    WiFi.disconnect(false);
+    wifiManagerInit();
 }
 
 void wifiManagerHandle(unsigned long now)

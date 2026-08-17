@@ -1,25 +1,28 @@
 """
-Jarvis Edge Node — Home Server Backend (docs/plan.txt Phase 3)
+Jarvis Edge Node — Home Server Backend (docs/plan.txt Phase 3-5)
 
 Ingests WAV recordings uploaded from the ESP32 firmware, transcribes them
 locally, routes the text through the fast LLM tier for an immediate reply,
 and schedules the heavy LLM tier as a background task. MQTT push-back to
-the device (docs/sdd.txt 4.2) is Phase 4 — for now, the fast response is
-returned directly in the HTTP response so it can be tested with curl.
+the device (docs/sdd.txt 4.2) pushes the reply/tasks in the background.
+Also exposes read/write settings + prompts endpoints for the Phase 5 Vite
+admin frontend (../frontend).
 """
 import json
 import logging
 from contextlib import asynccontextmanager
 
 from fastapi import BackgroundTasks, FastAPI, File, HTTPException, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 from sqlmodel import select
 
 from app import mqtt
 from app.asr import transcribe_wav
-from app.config import load_config
+from app.config import load_config, load_prompts, save_config, save_prompts
 from app.database import init_db, session_scope
-from app.llm import fast_reply, heavy_process
+from app.llm import fast_reply, heavy_process, list_available_models
 from app.models import LogEntry
 
 logging.basicConfig(level=logging.INFO)
@@ -43,6 +46,16 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Jarvis Edge Node — Backend", lifespan=lifespan)
+
+# The Vite admin frontend (Phase 5) runs on a separate dev-server port and,
+# once built, may be hosted from a different origin too — this is a
+# local-network tool, so allow any origin rather than hardcoding one.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.get("/health")
@@ -125,3 +138,86 @@ async def list_logs(limit: int = 20):
             select(LogEntry).order_by(LogEntry.id.desc()).limit(limit)
         ).all()
         return [e.model_dump(mode="json") for e in entries]
+
+
+# ── Settings / Prompts (Phase 5 — Vite Command Center) ──────────────────────
+
+class SettingsUpdate(BaseModel):
+    fast_model: str | None = None
+    heavy_model: str | None = None
+    mqtt_host: str | None = None
+    mqtt_port: int | None = None
+
+
+class PromptsUpdate(BaseModel):
+    fast_system_prompt: str | None = None
+    heavy_system_prompt: str | None = None
+
+
+@app.get("/settings")
+async def get_settings():
+    """Current Ollama model assignment + MQTT broker config, for the Settings page."""
+    cfg = load_config()
+    ollama_cfg = cfg.get("ollama", {})
+    mqtt_cfg = cfg.get("mqtt", {})
+    return {
+        "fast_model": ollama_cfg.get("fast_model"),
+        "heavy_model": ollama_cfg.get("heavy_model"),
+        "mqtt_host": mqtt_cfg.get("host"),
+        "mqtt_port": mqtt_cfg.get("port"),
+    }
+
+
+@app.put("/settings")
+async def update_settings(update: SettingsUpdate):
+    """Apply edits from the Settings page and reconnect MQTT if its config changed."""
+    cfg = load_config()
+    ollama_cfg = cfg.setdefault("ollama", {})
+    mqtt_cfg = cfg.setdefault("mqtt", {})
+
+    if update.fast_model is not None:
+        ollama_cfg["fast_model"] = update.fast_model
+    if update.heavy_model is not None:
+        ollama_cfg["heavy_model"] = update.heavy_model
+
+    mqtt_changed = False
+    if update.mqtt_host is not None and update.mqtt_host != mqtt_cfg.get("host"):
+        mqtt_cfg["host"] = update.mqtt_host
+        mqtt_changed = True
+    if update.mqtt_port is not None and update.mqtt_port != mqtt_cfg.get("port"):
+        mqtt_cfg["port"] = update.mqtt_port
+        mqtt_changed = True
+
+    save_config(cfg)
+
+    if mqtt_changed:
+        mqtt.disconnect()
+        mqtt.connect()
+
+    return await get_settings()
+
+
+@app.get("/models")
+async def get_models():
+    """Model names Ollama currently has pulled — populates the Settings dropdowns."""
+    return {"models": await list_available_models()}
+
+
+@app.get("/prompts")
+async def get_prompts():
+    prompts = load_prompts()
+    return {
+        "fast_system_prompt": prompts.get("fast_system_prompt", ""),
+        "heavy_system_prompt": prompts.get("heavy_system_prompt", ""),
+    }
+
+
+@app.put("/prompts")
+async def update_prompts(update: PromptsUpdate):
+    prompts = load_prompts()
+    if update.fast_system_prompt is not None:
+        prompts["fast_system_prompt"] = update.fast_system_prompt
+    if update.heavy_system_prompt is not None:
+        prompts["heavy_system_prompt"] = update.heavy_system_prompt
+    save_prompts(prompts)
+    return await get_prompts()

@@ -11,6 +11,7 @@
 
 #include "mqtt_client.h"
 #include "network_config.h"
+#include "settings.h"
 #include "ui_screen_feed.h"
 #include "ui_screen_focus.h"
 #include <Arduino.h>
@@ -56,9 +57,15 @@ static void mqtt_callback(char * topic, uint8_t * payload, unsigned int len)
 
 void mqttClientInit()
 {
-    s_mqtt.setServer(JARVIS_MQTT_HOST, JARVIS_MQTT_PORT);
+    s_mqtt.setServer(settingsGetMqttHost(), settingsGetMqttPort());
     s_mqtt.setCallback(mqtt_callback);
-    Serial.printf("[MQTT] Configured for %s:%d\n", JARVIS_MQTT_HOST, JARVIS_MQTT_PORT);
+    Serial.printf("[MQTT] Configured for %s:%d\n", settingsGetMqttHost(), settingsGetMqttPort());
+}
+
+void mqttClientReconnect()
+{
+    if (s_mqtt.connected()) s_mqtt.disconnect();
+    mqttClientInit();
 }
 
 void mqttClientHandle(unsigned long now)

@@ -1,15 +1,17 @@
 // Project  : Jarvis Edge Node
 // File     : main.cpp
-// Purpose  : Phase 1+2+4 entry point — hardware baseline, UI shell, offline
-//            audio queue, WiFi/MQTT sync with the home server backend
-// Depends  : display.h, ui.h, sd_card.h, plaud_mode.h, wifi_manager.h,
-//            mqtt_client.h, sync_manager.h
+// Purpose  : Phase 1+2+4+5 entry point — hardware baseline, UI shell, offline
+//            audio queue, WiFi/MQTT sync with the home server backend, and
+//            on-device settings management
+// Depends  : display.h, ui.h, sd_card.h, settings.h, plaud_mode.h,
+//            wifi_manager.h, mqtt_client.h, sync_manager.h
 //
 // Scope (docs/plan.txt):
 //   Phase 1 — ILI9488 panel + GT911 touch, LVGL UI shell (carousel + status bar)
 //   Phase 2 — SD-backed /queue, I2S mic capture, BOOT-button "Plaud mode"
 //   Phase 4 — WiFi + MQTT UI push-back, background auto-sync of /queue to the
 //             Phase 3 backend (Phase 3 itself lives in ../../backend)
+//   Phase 5 — On-device Settings tile (WiFi/backend/MQTT config, persisted to SD)
 
 #include <Arduino.h>
 #include <lvgl.h>
@@ -17,6 +19,7 @@
 #include "ui.h"
 #include "ui_status_bar.h"
 #include "sd_card.h"
+#include "settings.h"
 #include "plaud_mode.h"
 #include "wifi_manager.h"
 #include "mqtt_client.h"
@@ -29,16 +32,19 @@ void setup()
 
     Serial.println();
     Serial.println("=================================================");
-    Serial.println("== Jarvis Edge Node — Phase 4 (WiFi/MQTT Sync)  ==");
+    Serial.println("== Jarvis Edge Node — Phase 5 (Settings + Sync) ==");
     Serial.println("=================================================");
     Serial.printf("Free heap : %u bytes\n", ESP.getFreeHeap());
     Serial.printf("Free PSRAM: %u bytes\n", ESP.getFreePsram());
     Serial.flush();
 
     initDisplay();   // LovyanGFX panel + GT911 touch + LVGL
-    ui_init();       // status bar + swipeable tile carousel
 
     sdCardInit();        // mount /queue for offline recordings
+    settingsInit();      // load WiFi/backend/MQTT config from SD (Settings tile)
+
+    ui_init();       // status bar + swipeable tile carousel (reads settings)
+
     plaudModeInit();     // arm BOOT button + mic capture writer task
     uiStatusBarSetQueueCount(sdCardCountQueueFiles());
 

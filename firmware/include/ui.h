@@ -22,9 +22,10 @@
 
 // Tile indices within the carousel (Jarvis Feed is the default/home tile).
 enum ui_tile_id_t {
-    UI_TILE_FOCUS  = 0,
-    UI_TILE_FEED   = 1,
-    UI_TILE_ACTIONS = 2,
+    UI_TILE_FOCUS    = 0,
+    UI_TILE_FEED     = 1,
+    UI_TILE_ACTIONS  = 2,
+    UI_TILE_SETTINGS = 3,
 };
 
 // Builds the persistent status bar + swipeable tile carousel on the active

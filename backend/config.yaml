@@ -1,30 +1,20 @@
 server:
-  host: "0.0.0.0"
+  host: 0.0.0.0
   port: 8000
   reload: false
-
 database:
-  # Path relative to the backend/ directory
-  path: "jarvis_edge.db"
-
+  path: jarvis_edge.db
 ollama:
-  host: "http://localhost:11434"
-  # Lightweight model — used for the immediate "Jarvis Feed" reply
-  fast_model: "phi4-mini"
-  # High-capacity model — used for batch structuring of daily logs
-  heavy_model: "gemma3:27b"
+  host: http://localhost:11434
+  fast_model: phi4-mini
+  heavy_model: gemma3:27b
   request_timeout_seconds: 120
-
 asr:
-  # faster-whisper model size: tiny | base | small | medium | large-v3
-  model_size: "base"
-  device: "cpu"
-  compute_type: "int8"
-
+  model_size: base
+  device: cpu
+  compute_type: int8
 mqtt:
-  # Mosquitto broker (docs/plan.txt Phase 4). Leave host blank to disable
-  # UI push-back — /upload/audio still works, it just won't notify the ESP32.
-  host: "localhost"
+  host: localhost
   port: 1883
-  topic_feed: "jarvis/ui/feed"
-  topic_focus: "jarvis/ui/focus"
+  topic_feed: jarvis/ui/feed
+  topic_focus: jarvis/ui/focus

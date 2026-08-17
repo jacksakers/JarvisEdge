@@ -35,6 +35,22 @@ def load_prompts() -> Dict[str, Any]:
     return _load_yaml(_PROMPTS_PATH, _prompts_cache)
 
 
+def save_config(cfg: Dict[str, Any]) -> None:
+    """Persist the full config dict back to config.yaml and refresh the cache."""
+    with open(_CONFIG_PATH, "w") as f:
+        yaml.safe_dump(cfg, f, sort_keys=False)
+    _config_cache.clear()
+    _config_cache.update(cfg)
+
+
+def save_prompts(prompts: Dict[str, Any]) -> None:
+    """Persist the full prompts dict back to prompts.yaml and refresh the cache."""
+    with open(_PROMPTS_PATH, "w") as f:
+        yaml.safe_dump(prompts, f, sort_keys=False)
+    _prompts_cache.clear()
+    _prompts_cache.update(prompts)
+
+
 def get_db_path() -> str:
     cfg = load_config()
     db_path = cfg.get("database", {}).get("path", "jarvis_edge.db")

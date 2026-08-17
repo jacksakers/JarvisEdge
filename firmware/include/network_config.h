@@ -17,7 +17,7 @@
 
 // Home server running the Phase 3 FastAPI backend (docs/sdd.txt 2.2).
 #ifndef JARVIS_BACKEND_HOST
-#define JARVIS_BACKEND_HOST    "192.168.1.100"
+#define JARVIS_BACKEND_HOST    "192.168.1.88"
 #endif
 #ifndef JARVIS_BACKEND_PORT
 #define JARVIS_BACKEND_PORT    8000

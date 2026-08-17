@@ -8,6 +8,7 @@
 #include "ui_screen_feed.h"
 #include "ui_screen_focus.h"
 #include "ui_screen_actions.h"
+#include "ui_screen_settings.h"
 
 void ui_init()
 {
@@ -19,7 +20,7 @@ void ui_init()
     uiStatusBarInit(scr);
 
     // Smartwatch-style horizontal carousel below the status bar.
-    // Column order: Daily Focus <- Jarvis Feed (home) -> Action Grid.
+    // Column order: Daily Focus <- Jarvis Feed (home) -> Action Grid -> Settings.
     lv_obj_t * tileview = lv_tileview_create(scr);
     lv_obj_set_size(tileview, UI_SCREEN_W, UI_CAROUSEL_H);
     lv_obj_set_pos(tileview, 0, UI_CAROUSEL_Y);
@@ -31,10 +32,12 @@ void ui_init()
     lv_obj_t * tile_focus = lv_tileview_add_tile(tileview, UI_TILE_FOCUS, 0, LV_DIR_HOR);
     lv_obj_t * tile_feed  = lv_tileview_add_tile(tileview, UI_TILE_FEED, 0, LV_DIR_HOR);
     lv_obj_t * tile_actions = lv_tileview_add_tile(tileview, UI_TILE_ACTIONS, 0, LV_DIR_HOR);
+    lv_obj_t * tile_settings = lv_tileview_add_tile(tileview, UI_TILE_SETTINGS, 0, LV_DIR_HOR);
 
     uiFocusScreenInit(tile_focus);
     uiFeedScreenInit(tile_feed);
     uiActionsScreenInit(tile_actions);
+    uiSettingsScreenInit(tile_settings);
 
     // Jarvis Feed is home — open there on boot.
     lv_tileview_set_tile_by_index(tileview, UI_TILE_FEED, 0, LV_ANIM_OFF);

@@ -45,3 +45,17 @@ async def heavy_process(transcript: str) -> str:
     return await _ollama_generate(
         transcript, prompts.get("heavy_system_prompt", ""), cfg.get("heavy_model"),
     )
+
+
+async def list_available_models() -> list[str]:
+    """Model names Ollama currently has pulled — used to populate the Settings dropdowns."""
+    cfg = load_config().get("ollama", {})
+    host = cfg.get("host", "http://localhost:11434")
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(f"{host}/api/tags")
+            resp.raise_for_status()
+            return [m["name"] for m in resp.json().get("models", [])]
+    except httpx.HTTPError:
+        logger.warning("[LLM] Could not reach Ollama at %s to list models.", host)
+        return []
