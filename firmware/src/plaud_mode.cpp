@@ -58,17 +58,17 @@ void plaudModeHandle()
 
     if (s_manual_active) {
         micCaptureHandle();   // keep filling the PSRAM buffer
-    } else if (settingsGetAmbientVadEnabled()) {
-        static unsigned long s_last_vad_check = 0;
-        unsigned long now = millis();
-        if (now - s_last_vad_check > 1500UL) {
-            s_last_vad_check = now;
-            if (micCaptureDetectVAD()) {
-                Serial.println("[VAD] Voice detected! Starting ambient screen-off recording.");
+    // } else if (settingsGetAmbientVadEnabled()) {
+    //     static unsigned long s_last_vad_check = 0;
+    //     unsigned long now = millis();
+    //     if (now - s_last_vad_check > 1500UL) {
+    //         s_last_vad_check = now;
+    //         if (micCaptureDetectVAD()) {
+    //             Serial.println("[VAD] Voice detected! Starting ambient screen-off recording.");
 
-                start_recording();
-            }
-        }
+    //             start_recording();
+    //         }
+    //     }
     }
     lv_timer_handler();                        // screen stays on either way
 }
