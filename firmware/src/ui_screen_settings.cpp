@@ -23,12 +23,23 @@
 #define KBD_H      130
 
 static lv_obj_t * s_ssid_ta   = nullptr;
+
 static lv_obj_t * s_pass_ta   = nullptr;
+
 static lv_obj_t * s_bhost_ta  = nullptr;
+
 static lv_obj_t * s_bport_ta  = nullptr;
+
 static lv_obj_t * s_mhost_ta  = nullptr;
+
 static lv_obj_t * s_mport_ta  = nullptr;
+
+static lv_obj_t * s_vad_cb    = nullptr;
+
+static lv_obj_t * s_power_cb  = nullptr;
+
 static lv_obj_t * s_kbd       = nullptr;
+
 static lv_obj_t * s_status_lbl = nullptr;
 
 static void ta_focused_ev(lv_event_t * e)
@@ -49,22 +60,64 @@ static void kbd_ready_ev(lv_event_t * e)
 }
 
 static void save_btn_ev(lv_event_t * e)
+
 {
+
     (void)e;
+
     lv_obj_add_flag(s_kbd, LV_OBJ_FLAG_HIDDEN);
 
+
     settingsSetWifiSSID(lv_textarea_get_text(s_ssid_ta));
+
     settingsSetWifiPassword(lv_textarea_get_text(s_pass_ta));
+
     settingsSetBackendHost(lv_textarea_get_text(s_bhost_ta));
+
     settingsSetBackendPort(atoi(lv_textarea_get_text(s_bport_ta)));
+
     settingsSetMqttHost(lv_textarea_get_text(s_mhost_ta));
+
     settingsSetMqttPort(atoi(lv_textarea_get_text(s_mport_ta)));
+
+    if (s_vad_cb) {
+
+        settingsSetAmbientVadEnabled(lv_obj_has_state(s_vad_cb, LV_STATE_CHECKED));
+
+    }
+
+    if (s_power_cb) {
+
+        bool enabled = lv_obj_has_state(s_power_cb, LV_STATE_CHECKED);
+
+        settingsSetPowerSavingEnabled(enabled);
+
+        if (enabled) {
+
+            setCpuFrequencyMhz(80);
+
+            Serial.println("[Power] Power saving mode enabled - Scaling CPU to 80MHz.");
+
+        } else {
+
+            setCpuFrequencyMhz(240);
+
+            Serial.println("[Power] Power saving mode disabled - Scaling CPU to 240MHz.");
+
+        }
+
+    }
+
     settingsSave();
 
+
     wifiManagerReconnect();
+
     mqttClientReconnect();
 
+
     if (s_status_lbl) lv_label_set_text(s_status_lbl, "Saved — reconnecting...");
+
 }
 
 static lv_obj_t * build_field(lv_obj_t * parent, const char * label_text, int y,
@@ -92,6 +145,28 @@ static lv_obj_t * build_field(lv_obj_t * parent, const char * label_text, int y,
     return ta;
 }
 
+static lv_obj_t * build_checkbox(lv_obj_t * parent, const char * label_text, int y, bool initial)
+{
+    lv_obj_t * cb = lv_checkbox_create(parent);
+    lv_checkbox_set_text(cb, label_text);
+    lv_obj_set_pos(cb, 4, y + 10);
+    lv_obj_set_style_text_color(cb, lv_color_hex(UI_CLR_TEXT), 0);
+    lv_obj_set_style_text_font(cb, &lv_font_montserrat_12, 0);
+
+    // Style the checkbox indicator (the box itself) for the dark high-contrast theme
+    lv_obj_set_style_bg_color(cb, lv_color_hex(UI_CLR_SURFACE), LV_PART_INDICATOR);
+    lv_obj_set_style_border_color(cb, lv_color_hex(UI_CLR_ACCENT), LV_PART_INDICATOR);
+    lv_obj_set_style_border_width(cb, 1, LV_PART_INDICATOR);
+    lv_obj_set_style_bg_color(cb, lv_color_hex(UI_CLR_ACCENT), LV_PART_INDICATOR | LV_STATE_CHECKED);
+
+    if (initial) {
+        lv_obj_add_state(cb, LV_STATE_CHECKED);
+    } else {
+        lv_obj_remove_state(cb, LV_STATE_CHECKED);
+    }
+    return cb;
+}
+
 void uiSettingsScreenInit(lv_obj_t * tile)
 {
     lv_obj_set_style_bg_color(tile, lv_color_hex(UI_CLR_BG), 0);
@@ -114,7 +189,6 @@ void uiSettingsScreenInit(lv_obj_t * tile)
     lv_obj_set_scroll_dir(form, LV_DIR_VER);
 
     char port_buf[8];
-
     s_ssid_ta  = build_field(form, "WiFi SSID", 0 * ROW_H, settingsGetWifiSSID(), false);
     s_pass_ta  = build_field(form, "WiFi Password", 1 * ROW_H, settingsGetWifiPassword(), true);
     s_bhost_ta = build_field(form, "Backend Host (home server IP)", 2 * ROW_H, settingsGetBackendHost(), false);
@@ -123,6 +197,8 @@ void uiSettingsScreenInit(lv_obj_t * tile)
     s_mhost_ta = build_field(form, "MQTT Broker Host", 4 * ROW_H, settingsGetMqttHost(), false);
     snprintf(port_buf, sizeof(port_buf), "%d", settingsGetMqttPort());
     s_mport_ta = build_field(form, "MQTT Broker Port", 5 * ROW_H, port_buf, false);
+    s_vad_cb   = build_checkbox(form, "Ambient VAD recording mode", 6 * ROW_H, settingsGetAmbientVadEnabled());
+    s_power_cb = build_checkbox(form, "Battery saving mode", 7 * ROW_H, settingsGetPowerSavingEnabled());
 
     lv_obj_t * save_btn = lv_button_create(tile);
     lv_obj_set_size(save_btn, 160, SAVE_BTN_H);
