@@ -29,8 +29,17 @@ bool micCaptureStart();
 void micCaptureHandle();
 
 // Stops capture, flushes the final partial chunk, patches the WAV header,
+
 // and closes the file. Blocks briefly (a few ms) for the writer task to
+
 // finish — safe to call from the main loop, not from an ISR.
+
 void micCaptureStop();
 
+
 bool micCaptureIsActive();
+
+
+// Samples the microphone briefly to check if voice/sound exceeds conversational threshold.
+
+bool micCaptureDetectVAD();

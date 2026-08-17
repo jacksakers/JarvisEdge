@@ -52,6 +52,10 @@ export default function SettingsPage() {
         mqtt_port: Number(settings.mqtt_port),
         jarvis_enabled: !!settings.jarvis_enabled,
         jarvis_base_url: settings.jarvis_base_url,
+        ambient_vad_mode: !!settings.ambient_vad_mode,
+        power_saving_mode: !!settings.power_saving_mode,
+        screen_off_timeout: Number(settings.screen_off_timeout ?? 30),
+        screen_lock_enabled: !!settings.screen_lock_enabled,
       })
       setSettings(updated)
       setStatus('Saved.')
@@ -175,6 +179,54 @@ export default function SettingsPage() {
               {testResult.connected ? 'Connected' : testResult.error || 'Unreachable'}
             </span>
           )}
+        </div>
+      </section>
+
+      <section className="glass rounded-2xl p-5 space-y-4">
+        <h2 className="text-xs uppercase tracking-widest text-jarvis-muted">Pocket Recorder &amp; Power Saving</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <label className="flex items-center gap-2 text-sm text-white cursor-pointer col-span-2">
+            <input
+              type="checkbox"
+              checked={!!settings.ambient_vad_mode}
+              onChange={(e) => update('ambient_vad_mode', e.target.checked)}
+              className="accent-cyan-500"
+            />
+            Ambient VAD recording mode (pocket-record auto-start)
+          </label>
+          <label className="flex items-center gap-2 text-sm text-white cursor-pointer">
+            <input
+              type="checkbox"
+              checked={!!settings.power_saving_mode}
+              onChange={(e) => update('power_saving_mode', e.target.checked)}
+              className="accent-cyan-500"
+            />
+            Battery saving mode (low-power clock/CPU scale)
+          </label>
+          <label className="flex items-center gap-2 text-sm text-white cursor-pointer">
+            <input
+              type="checkbox"
+              checked={!!settings.screen_lock_enabled}
+              onChange={(e) => update('screen_lock_enabled', e.target.checked)}
+              className="accent-cyan-500"
+            />
+            Enable Screen Lock (prevent pocket accidental taps)
+          </label>
+          <div className="col-span-2">
+            <Field label="Screen Off Timeout">
+              <select
+                value={settings.screen_off_timeout ?? 30}
+                onChange={(e) => update('screen_off_timeout', Number(e.target.value))}
+                className={inputClass}
+              >
+                <option value={15}>15 seconds</option>
+                <option value={30}>30 seconds</option>
+                <option value={60}>1 minute</option>
+                <option value={120}>2 minutes</option>
+                <option value={0}>Never (stay on)</option>
+              </select>
+            </Field>
+          </div>
         </div>
       </section>
 

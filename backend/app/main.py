@@ -78,11 +78,33 @@ app.add_middleware(
 async def health():
     return {"status": "ok"}
 
-
 class DeviceHeartbeat(BaseModel):
+
     wifi_rssi: int | None = None
+
     queue_count: int | None = None
+
     firmware: str | None = None
+
+
+
+class LogCreate(BaseModel):
+
+    raw_text: str
+
+    fast_response: Optional[str] = ""
+
+    status: Optional[str] = "fast_done"
+
+
+
+class LogUpdate(BaseModel):
+
+    raw_text: Optional[str] = None
+
+    fast_response: Optional[str] = None
+
+    status: Optional[str] = None
 
 
 @app.post("/device/heartbeat")
@@ -225,15 +247,81 @@ async def upload_audio(background_tasks: BackgroundTasks, file: UploadFile = Fil
         "fast_response": response_text,
     })
 
-
 @app.get("/logs")
+
 async def list_logs(limit: int = 20):
+
     """Recent log entries — useful for verifying both AI tiers fired (Phase 3 test)."""
+
     with session_scope() as session:
+
         entries = session.exec(
+
             select(LogEntry).order_by(LogEntry.id.desc()).limit(limit)
+
         ).all()
+
         return [e.model_dump(mode="json") for e in entries]
+
+
+
+@app.post("/logs", status_code=201)
+
+async def create_log(payload: LogCreate):
+
+    with session_scope() as session:
+
+        entry = LogEntry(
+
+            raw_text=payload.raw_text,
+
+            fast_response=payload.fast_response or "",
+
+            status=payload.status or "fast_done",
+
+        )
+
+        session.add(entry)
+
+        session.flush()
+
+        session.refresh(entry)
+
+        return entry.model_dump(mode="json")
+
+
+
+@app.patch("/logs/{log_id}")
+
+async def update_log(log_id: int, payload: LogUpdate):
+
+    with session_scope() as session:
+
+        entry = session.get(LogEntry, log_id)
+
+        if not entry:
+
+            raise HTTPException(404, "Log entry not found")
+
+        if payload.raw_text is not None:
+
+            entry.raw_text = payload.raw_text
+
+        if payload.fast_response is not None:
+
+            entry.fast_response = payload.fast_response
+
+        if payload.status is not None:
+
+            entry.status = payload.status
+
+        session.add(entry)
+
+        session.flush()
+
+        session.refresh(entry)
+
+        return entry.model_dump(mode="json")
 
 
 @app.get("/logs/{log_id}/audio")
@@ -460,67 +548,150 @@ async def jarvis_feed(limit: int = 20):
 # ── Settings / Prompts (Phase 5 — Vite Command Center) ──────────────────────
 
 class SettingsUpdate(BaseModel):
+
     fast_model: str | None = None
+
     heavy_model: str | None = None
+
     mqtt_host: str | None = None
+
     mqtt_port: int | None = None
+
     jarvis_enabled: bool | None = None
+
     jarvis_base_url: str | None = None
+
+    ambient_vad_mode: bool | None = None
+
+    power_saving_mode: bool | None = None
+
+    screen_off_timeout: int | None = None
+
+    screen_lock_enabled: bool | None = None
 
 
 class PromptsUpdate(BaseModel):
     fast_system_prompt: str | None = None
     heavy_system_prompt: str | None = None
 
-
 @app.get("/settings")
+
 async def get_settings():
+
     """Current Ollama model assignment + MQTT broker config, for the Settings page."""
+
     cfg = load_config()
+
     ollama_cfg = cfg.get("ollama", {})
+
     mqtt_cfg = cfg.get("mqtt", {})
+
     jarvis_cfg = cfg.get("jarvis", {})
+
+    device_cfg = cfg.get("device", {})
+
     return {
+
         "fast_model": ollama_cfg.get("fast_model"),
+
         "heavy_model": ollama_cfg.get("heavy_model"),
+
         "mqtt_host": mqtt_cfg.get("host"),
+
         "mqtt_port": mqtt_cfg.get("port"),
+
         "jarvis_enabled": jarvis_cfg.get("enabled", False),
+
         "jarvis_base_url": jarvis_cfg.get("base_url", ""),
+
+        "ambient_vad_mode": device_cfg.get("ambient_vad_mode", False),
+
+        "power_saving_mode": device_cfg.get("power_saving_mode", False),
+
+        "screen_off_timeout": device_cfg.get("screen_off_timeout", 30),
+
+        "screen_lock_enabled": device_cfg.get("screen_lock_enabled", False),
+
     }
 
 
+
 @app.put("/settings")
+
 async def update_settings(update: SettingsUpdate):
+
     """Apply edits from the Settings page and reconnect MQTT if its config changed."""
+
     cfg = load_config()
+
     ollama_cfg = cfg.setdefault("ollama", {})
+
     mqtt_cfg = cfg.setdefault("mqtt", {})
+
     jarvis_cfg = cfg.setdefault("jarvis", {})
 
+    device_cfg = cfg.setdefault("device", {})
+
+
     if update.fast_model is not None:
+
         ollama_cfg["fast_model"] = update.fast_model
+
     if update.heavy_model is not None:
+
         ollama_cfg["heavy_model"] = update.heavy_model
 
+
     mqtt_changed = False
+
     if update.mqtt_host is not None and update.mqtt_host != mqtt_cfg.get("host"):
+
         mqtt_cfg["host"] = update.mqtt_host
-        mqtt_changed = True
-    if update.mqtt_port is not None and update.mqtt_port != mqtt_cfg.get("port"):
-        mqtt_cfg["port"] = update.mqtt_port
+
         mqtt_changed = True
 
+    if update.mqtt_port is not None and update.mqtt_port != mqtt_cfg.get("port"):
+
+        mqtt_cfg["port"] = update.mqtt_port
+
+        mqtt_changed = True
+
+
     if update.jarvis_enabled is not None:
+
         jarvis_cfg["enabled"] = update.jarvis_enabled
+
     if update.jarvis_base_url is not None:
+
         jarvis_cfg["base_url"] = update.jarvis_base_url
+
+
+    if update.ambient_vad_mode is not None:
+
+        device_cfg["ambient_vad_mode"] = update.ambient_vad_mode
+
+    if update.power_saving_mode is not None:
+
+        device_cfg["power_saving_mode"] = update.power_saving_mode
+
+    if update.screen_off_timeout is not None:
+
+        device_cfg["screen_off_timeout"] = update.screen_off_timeout
+
+    if update.screen_lock_enabled is not None:
+
+        device_cfg["screen_lock_enabled"] = update.screen_lock_enabled
+
 
     save_config(cfg)
 
+
     if mqtt_changed:
+
         mqtt.disconnect()
+
         mqtt.connect()
+
 
     return await get_settings()
 

@@ -319,6 +319,61 @@ void micCaptureStop()
 }
 
 bool micCaptureIsActive()
+
 {
+
     return s_active;
+
+}
+
+
+bool micCaptureDetectVAD()
+
+{
+
+    if (s_active) return false;
+
+
+    if (!i2s_mic_install()) return false;
+
+
+    size_t bytes_read = 0;
+
+    int16_t peak = 0;
+
+
+    // Read a few chunks to settle and measure peak amplitude
+
+    for (int chunk = 0; chunk < 4; chunk++) {
+
+        i2s_read(MIC_I2S_PORT, s_read_buf, sizeof(s_read_buf), &bytes_read, 50);
+
+        if (bytes_read > 0) {
+
+            size_t mono_len = deinterleave_pdm_samples(s_read_buf, bytes_read, s_mono_buf);
+
+            int16_t * samples = (int16_t *)s_mono_buf;
+
+            size_t count = mono_len / sizeof(int16_t);
+
+            for (size_t i = 0; i < count; i++) {
+
+                int16_t abs_s = samples[i] < 0 ? -samples[i] : samples[i];
+
+                if (abs_s > peak) peak = abs_s;
+
+            }
+
+        }
+
+    }
+
+
+    i2s_mic_uninstall();
+
+
+    // 2000 is an appropriate threshold for speech near the device
+
+    return (peak > 2000);
+
 }

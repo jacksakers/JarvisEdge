@@ -37,9 +37,10 @@ export const api = {
   getModels: () => request('/models'),
   getPrompts: () => request('/prompts'),
   updatePrompts: (body) => request('/prompts', { method: 'PUT', body: JSON.stringify(body) }),
-
   // Voice logs
   getLogs: (limit = 20) => request(`/logs?limit=${limit}`),
+  createLog: (body) => request('/logs', { method: 'POST', body: JSON.stringify(body) }),
+  updateLog: (id, body) => request(`/logs/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   deleteLog: (id) => request(`/logs/${id}`, { method: 'DELETE' }),
   clearLogs: () => request('/logs', { method: 'DELETE' }),
   getLogAudioUrl: (id) => `${getBaseUrl()}/logs/${id}/audio`,

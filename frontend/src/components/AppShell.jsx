@@ -76,6 +76,11 @@ export default function AppShell() {
                 {device.online ? 'Device online' : 'Device offline'}
               </span>
             </div>
+            {device.online && device.queue_count !== undefined && (
+              <div className="flex items-center gap-2 bg-jarvis-amber/10 border border-jarvis-amber/30 rounded-full px-2 py-0.5 text-xs text-jarvis-amber font-mono animate-pulse">
+                <span>Queue: {device.queue_count} pending</span>
+              </div>
+            )}
           </div>
 
           <div className="relative">
