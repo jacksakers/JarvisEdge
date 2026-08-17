@@ -12,7 +12,8 @@
 #include <lvgl.h>
 #include <Arduino.h>
 
-static bool s_active = false;
+static bool s_screen_off_active = false;   // BOOT-triggered — backlight killed
+static bool s_manual_active     = false;   // on-screen button — screen stays on
 
 static void start_recording()
 {
@@ -22,7 +23,7 @@ static void start_recording()
         displaySetBacklight(true);
         return;
     }
-    s_active = true;
+    s_screen_off_active = true;
     Serial.println("[Plaud] Recording started — screen off.");
 }
 
@@ -30,7 +31,7 @@ static void stop_recording()
 {
     micCaptureStop();
     displaySetBacklight(true);
-    s_active = false;
+    s_screen_off_active = false;
     uiStatusBarSetQueueCount(sdCardCountQueueFiles());
     Serial.println("[Plaud] Recording stopped — screen on.");
 }
@@ -44,18 +45,38 @@ void plaudModeInit()
 void plaudModeHandle()
 {
     if (bootButtonConsumePress()) {
-        if (s_active) stop_recording();
-        else          start_recording();
+        if (s_screen_off_active)   stop_recording();
+        else if (!s_manual_active) start_recording();   // BOOT can't steal the mic mid manual-recording
     }
 
-    if (s_active) {
-        micCaptureHandle();       // LVGL is intentionally not pumped while recording
-    } else {
-        lv_timer_handler();
+    if (s_screen_off_active) {
+        micCaptureHandle();       // screen off — LVGL intentionally not pumped
+        return;
     }
+
+    if (s_manual_active) micCaptureHandle();   // keep filling the PSRAM buffer
+    lv_timer_handler();                        // screen stays on either way
 }
 
 bool plaudModeIsActive()
 {
-    return s_active;
+    return micCaptureIsActive();   // the fact SD/mic can't overlap doesn't care who triggered capture
+}
+
+bool plaudModeToggleManualRecording()
+{
+    if (s_screen_off_active) return false;   // BOOT-triggered recording already owns the mic
+
+    if (s_manual_active) {
+        micCaptureStop();
+        s_manual_active = false;
+        uiStatusBarSetQueueCount(sdCardCountQueueFiles());
+        Serial.println("[Plaud] Manual recording stopped.");
+        return false;
+    }
+
+    if (!micCaptureStart()) return false;
+    s_manual_active = true;
+    Serial.println("[Plaud] Manual recording started — screen stays on.");
+    return true;
 }

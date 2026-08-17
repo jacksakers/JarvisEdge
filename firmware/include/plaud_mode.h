@@ -17,3 +17,9 @@ void plaudModeInit();
 void plaudModeHandle();
 
 bool plaudModeIsActive();
+
+// Toggles a manual, screen-on recording (e.g. from the status bar's record
+// button) — unlike BOOT, this never touches the backlight. A no-op (returns
+// false) while a BOOT-triggered recording already owns the mic. Returns true
+// if a recording is now active.
+bool plaudModeToggleManualRecording();
