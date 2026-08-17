@@ -45,16 +45,17 @@ struct WavHeader {
  * start capture"). ~100s of 16kHz/16-bit mono leaves plenty of headroom. */
 #define MIC_MAX_RECORD_BYTES  (3UL * 1024 * 1024)
 
-/* ESP32-S3 PDM RX decimation filter outputs samples at a fraction of full
- * scale — recordings come out sounding like near-silence with only the
- * loudest transients audible ("pops") unless amplified in software. Start
- * conservative and raise if voice is still too quiet; watch for clipping. */
-#define MIC_DIGITAL_GAIN  8
+/* A live capture at gain=8 came back ~100% clipped (flat -32768 samples,
+ * no speech left for Whisper to find) — the raw PDM output isn't nearly as
+ * quiet as assumed. Start near-unity and raise cautiously, watching
+ * [Mic] peak amplitude on stop (logged below) to stay clear of clipping. */
+#define MIC_DIGITAL_GAIN  2
 
 static uint8_t   s_read_buf[READ_CHUNK_BYTES];
 static uint8_t * s_record_buf   = nullptr;   /* PSRAM — whole recording, written to SD only after stop */
 static char      s_record_path[48];
 static uint32_t  s_audio_bytes  = 0;
+static int16_t   s_peak_sample  = 0;         /* post-gain peak this recording — logged on stop to tune MIC_DIGITAL_GAIN */
 static volatile bool s_active   = false;
 
 // ── I2S (PDM RX) ──────────────────────────────────────────────────────────
@@ -111,6 +112,8 @@ static void apply_gain(uint8_t * buf, size_t len)
         if (amplified > INT16_MAX) amplified = INT16_MAX;
         else if (amplified < INT16_MIN) amplified = INT16_MIN;
         samples[i] = (int16_t)amplified;
+        int16_t abs_sample = samples[i] < 0 ? (int16_t)-samples[i] : samples[i];
+        if (abs_sample > s_peak_sample) s_peak_sample = abs_sample;
     }
 }
 
@@ -162,6 +165,7 @@ bool micCaptureStart()
 
     snprintf(s_record_path, sizeof(s_record_path), "/queue/log_%lu.wav", millis());
     s_audio_bytes = 0;
+    s_peak_sample = 0;
 
     // Mic and SD card share hardware on this board and can't be driven at
     // once — SD isn't touched again until i2s_mic_uninstall() in Stop().
@@ -207,7 +211,8 @@ void micCaptureStop()
     }
 
     s_active = false;
-    Serial.printf("[Mic] Recording stopped (%u bytes audio).\n", (unsigned)s_audio_bytes);
+    Serial.printf("[Mic] Recording stopped (%u bytes audio, peak sample %d/32767).\n",
+                  (unsigned)s_audio_bytes, s_peak_sample);
 }
 
 bool micCaptureIsActive()

@@ -41,6 +41,17 @@ MAX_UPLOAD_BYTES = 25 * 1024 * 1024
 MAX_FOCUS_ITEMS = 3
 
 
+def _save_debug_audio(audio_bytes: bytes, reason: str) -> None:
+    """Uploads that fail ASR are otherwise discarded with nothing to inspect —
+    stash them so a bad mic capture can actually be listened to/analyzed."""
+    debug_dir = get_audio_dir() / "debug_failed"
+    debug_dir.mkdir(parents=True, exist_ok=True)
+    ts = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S%f")
+    path = debug_dir / f"{ts}_{reason}.wav"
+    path.write_bytes(audio_bytes)
+    logger.warning("[ASR] Saved failed upload for inspection: %s", path)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
@@ -173,8 +184,10 @@ async def upload_audio(background_tasks: BackgroundTasks, file: UploadFile = Fil
         transcript = await run_in_threadpool(transcribe_wav, audio_bytes)
     except Exception:
         logger.exception("[ASR] Transcription raised for a %d-byte upload.", len(audio_bytes))
+        _save_debug_audio(audio_bytes, "transcribe-error")
         raise HTTPException(422, "Transcription failed")
     if not transcript:
+        _save_debug_audio(audio_bytes, "no-text")
         raise HTTPException(422, "Transcription produced no text")
 
     try:

@@ -38,5 +38,21 @@ def transcribe_wav(audio_bytes: bytes) -> str:
     with tempfile.NamedTemporaryFile(suffix=".wav") as tmp:
         tmp.write(audio_bytes)
         tmp.flush()
-        segments, _info = model.transcribe(tmp.name)
+        segments, info = model.transcribe(tmp.name)
+        segments = list(segments)
+        # Whisper's no-speech/logprob heuristics silently drop segments it
+        # thinks are noise — when that leaves us with nothing, log why so a
+        # "422 Transcription produced no text" is diagnosable from the
+        # backend log instead of a dead end.
+        if not segments:
+            logger.warning(
+                "[ASR] No segments for %d-byte upload (lang=%s p=%.2f, duration=%.1fs).",
+                len(audio_bytes), info.language, info.language_probability, info.duration,
+            )
+        else:
+            for seg in segments:
+                logger.info(
+                    "[ASR] segment %.1f-%.1fs no_speech=%.2f avg_logprob=%.2f text=%r",
+                    seg.start, seg.end, seg.no_speech_prob, seg.avg_logprob, seg.text,
+                )
         return " ".join(seg.text.strip() for seg in segments).strip()
