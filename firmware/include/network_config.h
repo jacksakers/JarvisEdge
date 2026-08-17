@@ -20,7 +20,7 @@
 #define JARVIS_BACKEND_HOST    "192.168.1.88"
 #endif
 #ifndef JARVIS_BACKEND_PORT
-#define JARVIS_BACKEND_PORT    8000
+#define JARVIS_BACKEND_PORT    8010
 #endif
 
 // Mosquitto broker — defaults to the same host as the backend.

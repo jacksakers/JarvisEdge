@@ -84,7 +84,7 @@ python run.py
 ```
 
 Starts uvicorn on the host/port from `config.yaml` (default
-`0.0.0.0:8000`).
+`0.0.0.0:8010`).
 
 ## Endpoints
 
@@ -109,10 +109,10 @@ are lost the first time either file is edited via the API.
 ## Manual test (Phase 3 acceptance)
 
 ```bash
-curl -X POST http://localhost:8000/upload/audio \
+curl -X POST http://localhost:8010/upload/audio \
   -F "file=@/path/to/queue/log_0.wav;type=audio/wav"
 
-curl http://localhost:8000/logs
+curl http://localhost:8010/logs
 ```
 
 The first call returns the transcript + fast-tier reply immediately; polling

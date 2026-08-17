@@ -3,7 +3,7 @@
 // this is a local-network admin tool and the backend IP/port can vary
 // between deployments.
 
-const DEFAULT_BASE_URL = 'http://localhost:8000'
+const DEFAULT_BASE_URL = 'http://localhost:8010'
 
 export function getBaseUrl() {
   return localStorage.getItem('jarvis_backend_url') || DEFAULT_BASE_URL

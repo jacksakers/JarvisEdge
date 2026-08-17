@@ -25,6 +25,40 @@ JarvisEdge/
   frontend/    Vite + React admin frontend ("Command Center": Settings/Prompts/Data)
 ```
 
+## Quickstart
+
+One-time setup (creates the backend venv + installs deps, installs frontend
+npm packages):
+
+```bash
+./scripts/setup.sh
+```
+
+Then, each time you want to run it:
+
+```bash
+./scripts/start.sh
+```
+
+This starts the backend on **http://localhost:8010** and the frontend dev
+server on **http://localhost:5180** — open the frontend URL in a browser,
+that's the Command Center UI. Ctrl+C stops both.
+
+Prerequisites the scripts don't install for you: a running
+[Ollama](https://ollama.com) instance with the `fast_model`/`heavy_model`
+from `backend/config.yaml` pulled, and (optionally) a local MQTT broker such
+as Mosquitto — see [backend/README.md](backend/README.md) for details. The
+backend still works without MQTT; it just won't push live updates to the
+device.
+
+**"address already in use" on port 8000?** That's a different, unrelated
+project's dev server (not JarvisEdge) already bound to that port on this
+machine. The backend now defaults to port **8010** instead (`config.yaml`
+`server.port`) specifically to avoid that clash — pull the latest changes
+and the conflict goes away. If your ESP32 was already flashed with the old
+default backend port, open the **Settings** tile on the device and update
+the backend port there (no reflash needed).
+
 ## Status
 
 **Phase 1 — Hardware Baseline & UI Shell: implemented.**
