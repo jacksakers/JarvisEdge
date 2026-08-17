@@ -50,13 +50,15 @@ ui_status_bar.h/.cpp  "Persistent Status Bar" (WiFi/LoRa/battery/queue icons)
 ui_screen_feed.h/.cpp     "Jarvis Feed" — home tile, big AI-response label
 ui_screen_focus.h/.cpp    "Daily Focus" — 3 tappable to-do items
 ui_screen_actions.h/.cpp  "Action Grid" — 2x2 manual trigger buttons
+ui_screen_settings.h/.cpp "Settings" — on-device WiFi/backend/MQTT config form
 sd_card.h/.cpp        Mounts the SD card (SPI3/HSPI) and manages /queue
 boot_button.h/.cpp     BOOT-button (GPIO0) interrupt — minimal ISR + debounced consume
 mic_capture.h/.cpp     I2S PDM mic -> WAV-on-SD streaming capture (double-buffered)
 plaud_mode.h/.cpp      Orchestrates BOOT press -> backlight off + mic capture -> WAV in /queue
-network_config.h       Compile-time WiFi SSID/password, backend host/port, MQTT host/port/topics
-wifi_manager.h/.cpp    Non-blocking WiFi connect + status bar icon updates
-mqtt_client.h/.cpp     PubSubClient subscribe to jarvis/ui/feed + jarvis/ui/focus, updates UI tiles
+network_config.h       Compile-time WiFi SSID/password, backend host/port, MQTT host/port/topics (fallback defaults only)
+settings.h/.cpp        SD-backed (/settings/jarvis.txt) runtime-editable settings store, overrides network_config.h
+wifi_manager.h/.cpp    Non-blocking WiFi connect + status bar icon updates; wifiManagerReconnect() for Settings save
+mqtt_client.h/.cpp     PubSubClient subscribe to jarvis/ui/feed + jarvis/ui/focus, updates UI tiles; mqttClientReconnect() for Settings save
 sync_manager.h/.cpp    Core-0 FreeRTOS task: uploads queued /queue/*.wav to the backend, deletes on success
 ```
 
@@ -74,7 +76,24 @@ Each screen module exposes setter functions (`uiFeedSetText`,
 `uiFocusSetItem`, `uiStatusBarSetWifiConnected`, etc.) that later phases will
 call once real WiFi/MQTT/queue state exists — Phase 1 only wires the
 button/tap interactions that work entirely on-device (e.g. tapping a Daily
-Focus item strikes it through locally).
+Focus item strikes it through locally). Phase 5 adds a fourth tile,
+**Settings**, after Action Grid.
+
+### On-device Settings (docs/plan.txt Phase 5)
+
+`ui_screen_settings.cpp` builds a scrollable form with six text fields —
+WiFi SSID, WiFi password (masked), backend host, backend port, MQTT host,
+MQTT port — backed by an `lv_keyboard` overlay that pops up on focus
+(numeric mode for the port fields, lowercase text otherwise) and hides on
+`READY`/`CANCEL`. Values are seeded from `settings.h` getters (SD-stored
+value if present, else the `network_config.h` compile-time default). A
+"Save & Reconnect" button writes all six fields via `settingsSet*()` +
+`settingsSave()` (persisted to `/settings/jarvis.txt` on the SD card), then
+calls `wifiManagerReconnect()` and `mqttClientReconnect()` so the new WiFi/
+backend/MQTT config takes effect immediately without a reboot.
+
+Requires `LV_USE_KEYBOARD` and `LV_USE_TEXTAREA` enabled in `lv_conf.h`
+(both were off by default and had to be turned on for this feature).
 
 ### Offline audio capture — "Plaud mode" (docs/sdd.txt section 4.1)
 
@@ -121,4 +140,7 @@ and out of the way of a live recording.
 
 ### Not yet implemented (see ../docs/plan.txt)
 
-- Phase 5: Vite admin frontend
+None — Phases 1, 2, 4, and 5 (device-side) are all implemented. The other
+half of Phase 5, the Vite Command Center web frontend, lives in
+[../frontend](../frontend) and talks to the [backend](../backend) rather
+than the firmware.

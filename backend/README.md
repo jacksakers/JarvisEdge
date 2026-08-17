@@ -93,6 +93,18 @@ Starts uvicorn on the host/port from `config.yaml` (default
 | GET    | `/health`       | Liveness check.                                                 |
 | POST   | `/upload/audio` | Multipart WAV upload. Returns `{id, transcript, fast_response}`. |
 | GET    | `/logs`         | Recent `LogEntry` rows (verify both AI tiers fired).             |
+| GET    | `/settings`     | Current `{fast_model, heavy_model, mqtt_host, mqtt_port}`.       |
+| PUT    | `/settings`     | Update any subset of the above; rewrites `config.yaml` and reconnects MQTT if the broker config changed. |
+| GET    | `/models`       | Model names currently pulled in Ollama (`GET /api/tags`), for populating dropdowns. Returns `{"models": []}` if Ollama is unreachable. |
+| GET    | `/prompts`      | Current `{fast_system_prompt, heavy_system_prompt}`.             |
+| PUT    | `/prompts`      | Update either prompt; rewrites `prompts.yaml`.                   |
+
+These five endpoints (Phase 5) power the Vite Command Center frontend in
+[../frontend](../frontend) and are also safe to call directly with `curl`.
+CORS is wide open (`allow_origins=["*"]`) since this is a local-network-only
+admin tool. `save_config()`/`save_prompts()` in `app/config.py` rewrite the
+YAML files with `yaml.safe_dump` — comments in `config.yaml`/`prompts.yaml`
+are lost the first time either file is edited via the API.
 
 ## Manual test (Phase 3 acceptance)
 

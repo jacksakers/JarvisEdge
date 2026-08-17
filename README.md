@@ -22,10 +22,8 @@ JarvisEdge/
   docs/        System design, coding standards, and phased plan
   firmware/    ESP32-S3 PlatformIO project (LovyanGFX + LVGL UI shell)
   backend/     FastAPI home-server backend (audio ingestion, ASR, dual-tier LLM routing)
+  frontend/    Vite + React admin frontend ("Command Center": Settings/Prompts/Data)
 ```
-
-A Vite admin frontend will be added per [docs/plan.txt](docs/plan.txt)
-Phase 5; it will live in a sibling directory here once started.
 
 ## Status
 
@@ -39,4 +37,10 @@ architecture notes.
 See [backend/README.md](backend/README.md) for setup, configuration, and
 the manual test procedure.
 
-Phase 5 (admin frontend) is not yet started.
+**Phase 5 — On-device Settings + Command Center: implemented.** The
+firmware has a fourth carousel tile for managing WiFi/backend/MQTT config
+from the device itself (see firmware/README.md); the backend exposes
+`/settings`, `/models`, and `/prompts` (see backend/README.md); and
+[frontend/](frontend) is a Vite + React app with Settings/Prompts/Data
+pages consuming those endpoints. Run it with `cd frontend && npm install &&
+npm run dev`.
