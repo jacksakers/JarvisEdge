@@ -21,17 +21,22 @@ LoRa, SD storage, and an onboard microphone.
 JarvisEdge/
   docs/        System design, coding standards, and phased plan
   firmware/    ESP32-S3 PlatformIO project (LovyanGFX + LVGL UI shell)
+  backend/     FastAPI home-server backend (audio ingestion, ASR, dual-tier LLM routing)
 ```
 
-Future phases will add a FastAPI backend and a Vite admin frontend per
-[docs/plan.txt](docs/plan.txt) Phases 3-5; those will live in sibling
-directories here once started.
+A Vite admin frontend will be added per [docs/plan.txt](docs/plan.txt)
+Phase 5; it will live in a sibling directory here once started.
 
 ## Status
 
 **Phase 1 — Hardware Baseline & UI Shell: implemented.**
 **Phase 2 — Audio & Offline Mode ("Plaud" feature): implemented.**
+**Phase 4 — Synchronization & MQTT: implemented.**
 See [firmware/README.md](firmware/README.md) for build instructions and
 architecture notes.
 
-Phases 3-5 (backend API, MQTT sync, admin frontend) are not yet started.
+**Phase 3 — Backend API & AI Routing: implemented.**
+See [backend/README.md](backend/README.md) for setup, configuration, and
+the manual test procedure.
+
+Phase 5 (admin frontend) is not yet started.
