@@ -34,3 +34,6 @@ void micCaptureHandle();
 void micCaptureStop();
 
 bool micCaptureIsActive();
+
+// Samples the microphone briefly to check if voice/sound exceeds conversational threshold.
+bool micCaptureDetectVAD();

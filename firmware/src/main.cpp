@@ -40,9 +40,13 @@ void setup()
     Serial.flush();
 
     initDisplay();   // LovyanGFX panel + GT911 touch + LVGL
-
     sdCardInit();        // mount /queue for offline recordings
     settingsInit();      // load WiFi/backend/MQTT config from SD (Settings tile)
+
+    if (settingsGetPowerSavingEnabled()) {
+        setCpuFrequencyMhz(80);
+        Serial.println("[Power] Power saving mode enabled - Scaling CPU to 80MHz.");
+    }
 
     ui_init();       // status bar + swipeable tile carousel (reads settings)
 
@@ -69,6 +73,7 @@ void loop()
     wifiManagerHandle(now);
     mqttClientHandle(now);
     deviceHeartbeatHandle(now);
+    displayHandle(now);
 
     // 5 ms yield keeps timing accurate without blocking touch/I2S.
     delay(5);

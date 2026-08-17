@@ -17,10 +17,13 @@
 #include "plaud_mode.h"
 #include "sd_card.h"
 #include "ui_status_bar.h"
+#include "ui_screen_logs.h"
 #include <Arduino.h>
 #include <WiFi.h>
 #include <HTTPClient.h>
 #include <SD.h>
+#include <ArduinoJson.h>
+#include <time.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
@@ -111,11 +114,38 @@ static UploadResult upload_one(const String &path, size_t file_len)
     http.setTimeout(60000);
     http.setConnectTimeout(10000);
     int code = http.POST(body, head.length() + read_bytes + tail_len);
+    String response_body = "";
+    if (code == 200) {
+        response_body = http.getString();
+    }
     http.end();
     free(body);
 
     if (code == 200) {
         Serial.printf("[Sync] Uploaded %s (HTTP 200).\n", filename.c_str());
+        
+        JsonDocument res_doc;
+        if (deserializeJson(res_doc, response_body) == DeserializationError::Ok) {
+            const char * transcript = res_doc["transcript"] | "";
+            if (transcript && transcript[0] != '\0') {
+                time_t now = time(nullptr);
+                struct tm timeinfo;
+                char time_str[32] = "NTP Unsynced";
+                if (now > 1000000000L) {
+                    localtime_r(&now, &timeinfo);
+                    strftime(time_str, sizeof(time_str), "%Y-%m-%d %H:%M:%S", &timeinfo);
+                }
+                if (SD.exists("/logs") || SD.mkdir("/logs")) {
+                    File log_f = SD.open("/logs/history.txt", FILE_APPEND);
+                    if (log_f) {
+                        log_f.printf("[%s] %s\n", time_str, transcript);
+                        log_f.close();
+                        Serial.println("[Sync] Saved transcript to SD card: /logs/history.txt");
+                        uiLogsScreenReload();
+                    }
+                }
+            }
+        }
         return UploadResult::Success;
     }
     // 4xx means the backend rejected this specific file for good (e.g. empty

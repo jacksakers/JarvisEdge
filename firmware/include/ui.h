@@ -26,6 +26,8 @@ enum ui_tile_id_t {
     UI_TILE_FEED     = 1,
     UI_TILE_ACTIONS  = 2,
     UI_TILE_SETTINGS = 3,
+    UI_TILE_LOGS     = 4,
+
 };
 
 // Builds the persistent status bar + swipeable tile carousel on the active

@@ -38,4 +38,18 @@ const char * settingsGetMqttHost();
 void         settingsSetMqttHost(const char * host);
 
 int  settingsGetMqttPort();
+
 void settingsSetMqttPort(int port);
+
+// ── Pocket Recorder / Power accessors ──────────────────────────────────────
+bool settingsGetAmbientVadEnabled();
+void settingsSetAmbientVadEnabled(bool enabled);
+
+bool settingsGetPowerSavingEnabled();
+void settingsSetPowerSavingEnabled(bool enabled);
+
+int  settingsGetScreenOffTimeout();
+void settingsSetScreenOffTimeout(int seconds);
+
+bool settingsGetScreenLockEnabled();
+void settingsSetScreenLockEnabled(bool enabled);

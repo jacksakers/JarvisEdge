@@ -9,6 +9,7 @@
 #include "ui_screen_focus.h"
 #include "ui_screen_actions.h"
 #include "ui_screen_settings.h"
+#include "ui_screen_logs.h"
 
 void ui_init()
 {
@@ -28,16 +29,17 @@ void ui_init()
     lv_obj_set_style_bg_opa(tileview, LV_OPA_COVER, 0);
     lv_obj_set_style_border_width(tileview, 0, 0);
     lv_obj_set_style_pad_all(tileview, 0, 0);
-
     lv_obj_t * tile_focus = lv_tileview_add_tile(tileview, UI_TILE_FOCUS, 0, LV_DIR_HOR);
     lv_obj_t * tile_feed  = lv_tileview_add_tile(tileview, UI_TILE_FEED, 0, LV_DIR_HOR);
     lv_obj_t * tile_actions = lv_tileview_add_tile(tileview, UI_TILE_ACTIONS, 0, LV_DIR_HOR);
     lv_obj_t * tile_settings = lv_tileview_add_tile(tileview, UI_TILE_SETTINGS, 0, LV_DIR_HOR);
+    lv_obj_t * tile_logs = lv_tileview_add_tile(tileview, UI_TILE_LOGS, 0, LV_DIR_HOR);
 
     uiFocusScreenInit(tile_focus);
     uiFeedScreenInit(tile_feed);
     uiActionsScreenInit(tile_actions);
     uiSettingsScreenInit(tile_settings);
+    uiLogsScreenInit(tile_logs);
 
     // Jarvis Feed is home — open there on boot.
     lv_tileview_set_tile_by_index(tileview, UI_TILE_FEED, 0, LV_ANIM_OFF);

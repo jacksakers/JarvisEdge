@@ -10,5 +10,12 @@
 void initDisplay();
 
 // Turns the backlight on/off. Used by Plaud mode to blank the screen
+
 // during audio capture (see docs/sdd.txt section 4.1).
+
 void displaySetBacklight(bool on);
+
+
+// Handle idle timeouts and auto-dimming / pocket power-saving
+
+void displayHandle(unsigned long now);

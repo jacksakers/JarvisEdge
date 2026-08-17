@@ -43,9 +43,9 @@ void wifiManagerHandle(unsigned long now)
 
     s_was_connected = connected;
     uiStatusBarSetWifiConnected(connected);
-
     if (connected) {
         Serial.printf("[WiFi] Connected. IP: %s\n", WiFi.localIP().toString().c_str());
+        configTzTime("EST5EDT,M3.2.0,M11.1.0", "pool.ntp.org", "time.nist.gov");
     } else {
         Serial.println("[WiFi] Disconnected.");
     }

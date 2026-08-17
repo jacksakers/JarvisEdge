@@ -31,3 +31,8 @@ jarvis:
   enabled: false
   base_url: http://localhost:8000
   api_prefix: /api/v1
+device:
+  ambient_vad_mode: false
+  power_saving_mode: false
+  screen_off_timeout: 30
+  screen_lock_enabled: false
