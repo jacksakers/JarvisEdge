@@ -16,4 +16,3 @@ void uiStatusBarSetWifiConnected(bool connected);
 void uiStatusBarSetLoraConnected(bool connected);
 void uiStatusBarSetBatteryPercent(int percent);   // -1 = unknown/hide
 void uiStatusBarSetQueueCount(int count);         // 0 hides the badge
-void uiStatusBarSetRecording(bool active);        // reflects the on-screen record button's state

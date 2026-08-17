@@ -5,20 +5,12 @@
 
 #include "ui_status_bar.h"
 #include "ui.h"
-#include "plaud_mode.h"
 
 static lv_obj_t * s_bar        = nullptr;
 static lv_obj_t * s_wifi_icon  = nullptr;
 static lv_obj_t * s_lora_icon  = nullptr;
 static lv_obj_t * s_batt_label = nullptr;
 static lv_obj_t * s_queue_badge = nullptr;
-static lv_obj_t * s_rec_btn    = nullptr;
-
-static void record_btn_event_cb(lv_event_t * e)
-{
-    (void)e;
-    uiStatusBarSetRecording(plaudModeToggleManualRecording());
-}
 
 void uiStatusBarInit(lv_obj_t * parent)
 {
@@ -37,15 +29,6 @@ void uiStatusBarInit(lv_obj_t * parent)
     lv_label_set_text(title, "JARVIS");
     lv_obj_set_style_text_color(title, lv_color_hex(UI_CLR_TEXT), 0);
     lv_obj_align(title, LV_ALIGN_LEFT_MID, 0, 0);
-
-    // Doesn't kill the backlight (that's BOOT/Plaud mode's job) — just toggles
-    // capture so a note can be recorded without the screen going dark.
-    s_rec_btn = lv_label_create(s_bar);
-    lv_label_set_text(s_rec_btn, LV_SYMBOL_AUDIO);
-    lv_obj_set_style_text_color(s_rec_btn, lv_color_hex(UI_CLR_MUTED), 0);
-    lv_obj_align(s_rec_btn, LV_ALIGN_LEFT_MID, 70, 0);
-    lv_obj_add_flag(s_rec_btn, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_add_event_cb(s_rec_btn, record_btn_event_cb, LV_EVENT_CLICKED, nullptr);
 
     // Right-to-left cluster: battery, queue badge, LoRa, WiFi
     s_wifi_icon = lv_label_create(s_bar);
@@ -109,11 +92,4 @@ void uiStatusBarSetQueueCount(int count)
     } else {
         lv_label_set_text_fmt(s_queue_badge, LV_SYMBOL_UPLOAD " %d", count);
     }
-}
-
-void uiStatusBarSetRecording(bool active)
-{
-    if(!s_rec_btn) return;
-    lv_obj_set_style_text_color(s_rec_btn,
-        lv_color_hex(active ? 0xF44336 : UI_CLR_MUTED), 0);
 }
