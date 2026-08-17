@@ -45,6 +45,7 @@ static void hide_overlay(void)
     if (!s_overlay) return;
     lv_obj_add_flag(s_overlay, LV_OBJ_FLAG_HIDDEN);
     if (s_ta) lv_textarea_set_text(s_ta, "");
+    uiSetSwipeEnabled(true);
 }
 
 static void submit_ev(lv_event_t * e)
@@ -125,6 +126,7 @@ static void show_overlay(uint8_t idx)
     lv_textarea_set_text(s_ta, "");
     lv_obj_remove_flag(s_overlay, LV_OBJ_FLAG_HIDDEN);
     lv_keyboard_set_textarea(s_kbd, s_ta);
+    uiSetSwipeEnabled(false);   // keyboard taps were being misread as carousel swipes
 }
 
 // ── Immediate-fire tiles (Time Track / Dismiss) ──────────────────────────

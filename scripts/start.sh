@@ -44,7 +44,7 @@ BACKEND_PID=$!
 
 echo "==> Starting frontend (http://localhost:$FRONTEND_PORT)"
 cd "$ROOT/frontend"
-npm run dev -- --port "$FRONTEND_PORT" --strictPort &
+npx vite --host -- --port "$FRONTEND_PORT" --strictPort &
 FRONTEND_PID=$!
 
 echo

@@ -17,6 +17,10 @@
 static bool s_screen_off_active = false;   // BOOT-triggered — backlight killed
 static bool s_manual_active     = false;   // on-screen button — screen stays on
 
+#define VAD_BOOT_GRACE_MS      5000UL   /* let the PDM clock/DC estimate settle before trusting reads */
+#define VAD_CHECK_INTERVAL_MS  1500UL
+#define VAD_REQUIRED_HITS      2        /* consecutive hits needed before actually starting a recording */
+
 static void start_recording()
 {
     displaySetBacklight(false);   // kill the backlight before touching SD/I2S
@@ -58,17 +62,31 @@ void plaudModeHandle()
 
     if (s_manual_active) {
         micCaptureHandle();   // keep filling the PSRAM buffer
-    // } else if (settingsGetAmbientVadEnabled()) {
-    //     static unsigned long s_last_vad_check = 0;
-    //     unsigned long now = millis();
-    //     if (now - s_last_vad_check > 1500UL) {
-    //         s_last_vad_check = now;
-    //         if (micCaptureDetectVAD()) {
-    //             Serial.println("[VAD] Voice detected! Starting ambient screen-off recording.");
+    } else if (settingsGetAmbientVadEnabled()) {
+        static unsigned long s_last_vad_check = 0;
+        static uint8_t       s_vad_hits = 0;
+        unsigned long now = millis();
 
-    //             start_recording();
-    //         }
-    //     }
+        // The PDM clock/DC-bias estimate is unsettled for a moment right
+        // after boot (and after any prior i2s install/uninstall cycle) —
+        // reading amplitude too early sees a transient spike and falsely
+        // "hears" speech, which is why enabling VAD used to blank the
+        // screen immediately on every reboot. Give it a grace period.
+        if (now >= VAD_BOOT_GRACE_MS && now - s_last_vad_check > VAD_CHECK_INTERVAL_MS) {
+            s_last_vad_check = now;
+            if (micCaptureDetectVAD()) {
+                s_vad_hits++;
+                // Require a couple of consecutive positive reads before
+                // committing to a recording — filters out one-off spikes.
+                if (s_vad_hits >= VAD_REQUIRED_HITS) {
+                    s_vad_hits = 0;
+                    Serial.println("[VAD] Voice confirmed — starting ambient screen-off recording.");
+                    start_recording();
+                }
+            } else {
+                s_vad_hits = 0;
+            }
+        }
     }
     lv_timer_handler();                        // screen stays on either way
 }

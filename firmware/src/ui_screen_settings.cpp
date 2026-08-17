@@ -42,12 +42,14 @@ static void ta_focused_ev(lv_event_t * e)
     lv_obj_remove_flag(s_kbd, LV_OBJ_FLAG_HIDDEN);
     lv_obj_move_foreground(s_kbd);
     lv_obj_scroll_to_view(ta, LV_ANIM_ON);
+    uiSetSwipeEnabled(false);   // keyboard taps were being misread as carousel swipes
 }
 
 static void kbd_ready_ev(lv_event_t * e)
 {
     (void)e;
     lv_obj_add_flag(s_kbd, LV_OBJ_FLAG_HIDDEN);
+    uiSetSwipeEnabled(true);
 }
 
 static void save_btn_ev(lv_event_t * e)

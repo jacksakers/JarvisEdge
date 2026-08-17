@@ -6,6 +6,7 @@
 #include <lvgl.h>
 #include "display.h"
 #include "settings.h"
+#include "ui.h"
 #include "LovyanGFX_Driver.h"
 #include <Arduino.h>
 #include <Wire.h>
@@ -48,18 +49,11 @@ static void my_touchpad_read(lv_indev_t * indev, lv_indev_data_t * data)
             displaySetBacklight(true);
             if (settingsGetScreenLockEnabled()) {
                 s_screen_locked = true;
-                Serial.println("[Display] Woke up - Screen is locked.");
+                uiSetLockOverlayVisible(true);
+                Serial.println("[Display] Woke up - screen locked (swipe up to unlock).");
             }
 
-            data->state = LV_INDEV_STATE_RELEASED;
-
-            return;
-        }
-
-        if (s_screen_locked) {
-            s_screen_locked = false;
-            Serial.println("[Display] Screen unlocked.");
-            data->state = LV_INDEV_STATE_RELEASED;
+            data->state = LV_INDEV_STATE_RELEASED;   // don't let the wake-tap register as a click
             return;
         }
 
@@ -129,4 +123,10 @@ void displayHandle(unsigned long now)
             displaySetBacklight(false);
         }
     }
+}
+
+void displayForceUnlock()
+{
+    s_screen_locked = false;
+    uiSetLockOverlayVisible(false);
 }

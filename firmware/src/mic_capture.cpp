@@ -332,6 +332,11 @@ bool micCaptureDetectVAD()
     size_t bytes_read = 0;
     int16_t peak = 0;
 
+    // The very first read after installing the PDM driver is unreliable
+    // (clock/DC-bias transient) and can look like a loud spike even in
+    // silence — discard it before measuring peak amplitude.
+    i2s_read(MIC_I2S_PORT, s_read_buf, sizeof(s_read_buf), &bytes_read, 80);
+
     // Read a few chunks to settle and measure peak amplitude
     for (int chunk = 0; chunk < 4; chunk++) {
         i2s_read(MIC_I2S_PORT, s_read_buf, sizeof(s_read_buf), &bytes_read, 50);

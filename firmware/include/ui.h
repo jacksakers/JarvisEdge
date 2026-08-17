@@ -33,3 +33,13 @@ enum ui_tile_id_t {
 // Builds the persistent status bar + swipeable tile carousel on the active
 // screen. Call once from setup(), after initDisplay().
 void ui_init();
+
+// Enables/disables horizontal swipe-to-change-tile on the carousel. Screens
+// that show an on-screen keyboard call this with `false` while it's up so
+// keyboard key taps don't get misread as carousel swipes, then `true` again
+// once the keyboard is dismissed.
+void uiSetSwipeEnabled(bool enabled);
+
+// Shows/hides the full-screen "locked" overlay (swipe up to unlock). Driven
+// by display.cpp's touch handler when Settings > Screen Lock is enabled.
+void uiSetLockOverlayVisible(bool visible);

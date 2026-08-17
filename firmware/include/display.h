@@ -19,3 +19,7 @@ void displaySetBacklight(bool on);
 // Handle idle timeouts and auto-dimming / pocket power-saving
 
 void displayHandle(unsigned long now);
+
+// Clears the screen-lock state — called when the lock overlay's swipe-up
+// gesture is recognized (see ui.cpp).
+void displayForceUnlock();

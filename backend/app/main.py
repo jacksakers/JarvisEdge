@@ -24,6 +24,7 @@ from sqlmodel import select
 
 from app import jarvis_client, mqtt
 from app.asr import transcribe_wav
+from app.concurrency import ai_semaphore
 from app.config import get_audio_dir, load_config, load_prompts, save_config, save_prompts
 from app.database import init_db, session_scope
 from app.device_status import get_status as get_device_status, record_heartbeat
@@ -125,7 +126,8 @@ def _publish_focus_from_db() -> None:
 async def _run_heavy(log_id: int, transcript: str) -> None:
     """Background task: heavy-tier structuring, run after the HTTP response is sent."""
     try:
-        structured = await heavy_process(transcript)
+        async with ai_semaphore:
+            structured = await heavy_process(transcript)
     except Exception:
         logger.exception("[Heavy] Processing failed for log %s", log_id)
         with session_scope() as session:
@@ -189,7 +191,8 @@ async def upload_audio(background_tasks: BackgroundTasks, file: UploadFile = Fil
     # device's sync loop can tell "never going to work" apart from "try again"
     # instead of re-uploading (and re-transcribing) the same file forever.
     try:
-        transcript = await run_in_threadpool(transcribe_wav, audio_bytes)
+        async with ai_semaphore:
+            transcript = await run_in_threadpool(transcribe_wav, audio_bytes)
     except Exception:
         logger.exception("[ASR] Transcription raised for a %d-byte upload.", len(audio_bytes))
         _save_debug_audio(audio_bytes, "transcribe-error")
@@ -199,7 +202,8 @@ async def upload_audio(background_tasks: BackgroundTasks, file: UploadFile = Fil
         raise HTTPException(422, "Transcription produced no text")
 
     try:
-        response_text = await fast_reply(transcript)
+        async with ai_semaphore:
+            response_text = await fast_reply(transcript)
     except Exception:
         logger.exception("[Fast LLM] fast_reply failed for log transcript.")
         raise HTTPException(422, "Fast-tier response failed")
