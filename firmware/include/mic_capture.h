@@ -5,11 +5,14 @@
 
 #pragma once
 
-/* ── Mic hardware (Elecrow CrowPanel Advance 3.5" — verify against schematic)
- *   Carried over from the HelpDesk firmware's onboard PDM mic pins.
+/* ── Mic hardware (Elecrow CrowPanel Advance 3.5") ──────────────────────────
+ *   Per Elecrow's own repo (readme "Version update points", v1.2+ boards):
+ *   "i2s_mic changed to two pins IO9 and IO10". The old GPIO3 clock pin
+ *   here was wrong — it left the PDM clock floating, which is why captures
+ *   read one or two real samples and then pinned at -32768 for the rest.
  * ───────────────────────────────────────────────────────────────────────── */
-#define MIC_I2S_WS      3    /* PDM clock  — TODO: hw verify */
-#define MIC_I2S_DATA   10    /* PDM data   — TODO: hw verify */
+#define MIC_I2S_WS      9    /* PDM clock */
+#define MIC_I2S_DATA   10    /* PDM data */
 #define MIC_SAMPLE_RATE 16000
 
 // Installs the write-task/queue machinery. Call once from setup(), after
