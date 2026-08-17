@@ -23,23 +23,14 @@
 #define KBD_H      130
 
 static lv_obj_t * s_ssid_ta   = nullptr;
-
 static lv_obj_t * s_pass_ta   = nullptr;
-
 static lv_obj_t * s_bhost_ta  = nullptr;
-
 static lv_obj_t * s_bport_ta  = nullptr;
-
 static lv_obj_t * s_mhost_ta  = nullptr;
-
 static lv_obj_t * s_mport_ta  = nullptr;
-
 static lv_obj_t * s_vad_cb    = nullptr;
-
 static lv_obj_t * s_power_cb  = nullptr;
-
 static lv_obj_t * s_kbd       = nullptr;
-
 static lv_obj_t * s_status_lbl = nullptr;
 
 static void ta_focused_ev(lv_event_t * e)
@@ -60,61 +51,37 @@ static void kbd_ready_ev(lv_event_t * e)
 }
 
 static void save_btn_ev(lv_event_t * e)
-
 {
-
     (void)e;
-
     lv_obj_add_flag(s_kbd, LV_OBJ_FLAG_HIDDEN);
 
-
     settingsSetWifiSSID(lv_textarea_get_text(s_ssid_ta));
-
     settingsSetWifiPassword(lv_textarea_get_text(s_pass_ta));
-
     settingsSetBackendHost(lv_textarea_get_text(s_bhost_ta));
-
     settingsSetBackendPort(atoi(lv_textarea_get_text(s_bport_ta)));
-
     settingsSetMqttHost(lv_textarea_get_text(s_mhost_ta));
-
     settingsSetMqttPort(atoi(lv_textarea_get_text(s_mport_ta)));
 
     if (s_vad_cb) {
-
         settingsSetAmbientVadEnabled(lv_obj_has_state(s_vad_cb, LV_STATE_CHECKED));
-
     }
 
     if (s_power_cb) {
-
         bool enabled = lv_obj_has_state(s_power_cb, LV_STATE_CHECKED);
-
         settingsSetPowerSavingEnabled(enabled);
-
         if (enabled) {
-
             setCpuFrequencyMhz(80);
-
             Serial.println("[Power] Power saving mode enabled - Scaling CPU to 80MHz.");
-
         } else {
-
             setCpuFrequencyMhz(240);
-
             Serial.println("[Power] Power saving mode disabled - Scaling CPU to 240MHz.");
-
         }
-
     }
 
     settingsSave();
 
-
     wifiManagerReconnect();
-
     mqttClientReconnect();
-
 
     if (s_status_lbl) lv_label_set_text(s_status_lbl, "Saved — reconnecting...");
 
