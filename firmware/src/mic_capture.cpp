@@ -33,7 +33,7 @@ struct WavHeader {
 #define MIC_MAX_RECORD_BYTES  (3UL * 1024 * 1024)
 
 /* Digital gain multiplier for clean PCM audio */
-#define MIC_DIGITAL_GAIN      2
+#define MIC_DIGITAL_GAIN      4
 
 /* Force PDM Mode 1 for Elecrow ESP32-S3 v1.2+ hardware */
 #ifndef MIC_TYPE_PDM
