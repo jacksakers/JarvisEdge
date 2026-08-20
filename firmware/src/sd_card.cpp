@@ -12,7 +12,7 @@
  * The display uses SPI2/FSPI (SCLK=42, MOSI=39).
  * The SD card uses SPI3/HSPI to avoid bus contention.
  * Carried over from the HelpDesk firmware for the same board family —
- * re-verify against the real Jarvis Edge Node schematic once in hand.
+ * re-verify against the real House Phone schematic once in hand.
  * ─────────────────────────────────────────────────────────────────────────── */
 #define SD_MOSI  6
 #define SD_MISO  4

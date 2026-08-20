@@ -25,11 +25,12 @@ class LogEntry(SQLModel, table=True):
 
 class FocusItem(SQLModel, table=True):
     """
-    One "Daily Focus" to-do item shown on the device's carousel tile.
+    One Todo List item, managed entirely from the Command Center (no
+    on-device tile — see docs/sdd.txt section 3).
 
-    Replaces the old MQTT-only, DB-less top-3 list: items are now first-class
-    rows so the Command Center frontend gets full CRUD, and the device can
-    toggle completion directly over HTTP (see docs/sdd.txt 4.3).
+    `source="ai"` rows come from the heavy LLM tier extracting tasks out of
+    a voice note's transcript; `source="manual"` rows are added directly
+    from the Command Center's Todo List page.
     """
 
     id: Optional[int] = Field(default=None, primary_key=True)

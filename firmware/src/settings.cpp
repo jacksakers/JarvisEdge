@@ -121,7 +121,7 @@ void settingsSave()
         return;
     }
 
-    f.printf("# Jarvis Edge Node settings — edited on-device\n");
+    f.printf("# House Phone settings — edited on-device\n");
     f.printf("wifi_ssid=%s\n",     s_wifi_ssid);
     f.printf("wifi_password=%s\n", s_wifi_password);
     f.printf("backend_host=%s\n", s_backend_host);

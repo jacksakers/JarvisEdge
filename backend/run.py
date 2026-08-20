@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Jarvis Edge Node — Backend entry point
+House Phone — Backend entry point
 Run from the backend/ directory:
     python run.py
 """

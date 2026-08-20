@@ -1,12 +1,12 @@
 """
-Jarvis Edge Node — Home Server Backend (docs/plan.txt Phase 3-5)
+House Phone — Home Server Backend (docs/sdd.txt)
 
 Ingests WAV recordings uploaded from the ESP32 firmware, transcribes them
 locally, routes the text through the fast LLM tier for an immediate reply,
 and schedules the heavy LLM tier as a background task. MQTT push-back to
-the device (docs/sdd.txt 4.2) pushes the reply/tasks in the background.
-Also exposes read/write settings + prompts endpoints for the Phase 5 Vite
-admin frontend (../frontend).
+the device (docs/sdd.txt 4.2) pushes the reply in the background. Also
+exposes read/write settings + prompts + Tapo/Ambient Home endpoints for the
+Command Center frontend (../frontend).
 """
 import asyncio
 import json
@@ -60,7 +60,7 @@ async def lifespan(app: FastAPI):
     mqtt.disconnect()
 
 
-app = FastAPI(title="Jarvis Edge Node — Backend", lifespan=lifespan)
+app = FastAPI(title="House Phone — Backend", lifespan=lifespan)
 
 # The Vite admin frontend (Phase 5) runs on a separate dev-server port and,
 # once built, may be hosted from a different origin too — this is a

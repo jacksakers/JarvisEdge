@@ -1,6 +1,6 @@
-Coding Guidelines: Jarvis Edge Node
+Coding Guidelines: House Phone
 
-This document outlines the coding standards across the C++, Python, and JavaScript stacks used in the Jarvis Edge Node project to ensure a maintainable, high-performance system.
+This document outlines the coding standards across the C++, Python, and JavaScript stacks used in the House Phone project to ensure a maintainable, high-performance system.
 
 1. General Principles
 

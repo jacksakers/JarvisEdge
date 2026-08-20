@@ -6,7 +6,7 @@
 // NOTE: Pin mapping and panel quirks below are carried over verbatim from the
 // HelpDesk firmware, which targets the same Elecrow CrowPanel Advance 3.5"
 // ESP32-S3 HMI board family described in ../docs/sdd.txt (ILI9488, 480x320,
-// capacitive touch). Re-verify against the actual Jarvis Edge Node hardware
+// capacitive touch). Re-verify against the actual House Phone hardware
 // once it is in hand — if it turns out to be a different Elecrow revision,
 // only this file should need to change.
 

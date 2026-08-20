@@ -1,10 +1,10 @@
 /**
  * @file lv_conf.h
  * Configuration file for LVGL v9.2.x
- * Project: Jarvis Edge Node (Elecrow 3.5" ESP32-S3 HMI)
+ * Project: House Phone (Elecrow 3.5" ESP32-S3 HMI)
  *
  * Adapted from the HelpDesk firmware's lv_conf.h (same display hardware).
- * Only features actually used by the Edge Node UI are enabled.
+ * Only features actually used by the House Phone UI are enabled.
  */
 
 /* clang-format off */
