@@ -1,0 +1,93 @@
+System Design Document: The House Phone
+
+1. Executive Summary
+
+The "House Phone" is a dedicated, distraction-free edge device designed to replace your smartphone when you enter your home. Built on the Elecrow ESP32 3.5-inch HMI touchscreen module, it acts as a modern landline terminal and smart home command center. It pairs via Bluetooth Low Energy (BLE) to ingest real-time notifications from your primary phone, provides tactile controls for cooking timers and morning alarms, captures local AI voice notes, and functions as an ambient, frictionless dashboard for controlling your local Tapo smart home lighting.
+
+2. Core Vision & Use Cases
+
+The "Digital Sanctuary" Principle: When you cross your threshold, your phone goes on a charger in another room. The House Phone handles ambient communication so you remain reachable without the distraction of apps, feeds, or social media.
+
+Direct Smart Light Command: Quick-access toggles and sliders to control Tapo smart bulbs or light strips across different rooms. This integrates directly over the local Wi-Fi network using the tapo-esp32 KLAP protocol, bypassing cloud servers or intermediary hubs for instant responsiveness.
+
+Bluetooth Notification Relay: Receives incoming push notifications from your primary phone via BLE (via Tasker) and displays them instantly in a clean, high-contrast LVGL card carousel.
+
+Kitchen & Household Utility: Quick-tap cooking timers, stopwatch features, and voice-to-text logging for shopping lists or quick reminders.
+
+Bedside Alarm Clock: Replaces your phone in the bedroom. Acts as a standalone bedside alarm clock with physical tactile controls and a dimmed, battery-friendly dark mode.
+
+Local AI Voice Capture: Maintains the underlying I2S microphone capture pipeline, queuing quick voice notes or commands to your Linux mini PC backend for Whisper transcription and LLM processing.
+
+3. System Architecture
+
+┌────────────────────────┐         BLE / Tasker          ┌────────────────────────┐
+│    Primary Smartphone  │ ─────────────────────────────>│    Elecrow ESP32       │
+│  (Tasker + BT Plugin)  │                               │    (The House Phone)   │
+└────────────────────────┘                               └────────────────────────┐
+                                                                    │
+                    ┌───────────────────────────────────────────────┼────────────────────────────────────────┐
+                    │                                               │                                        │
+           Wi-Fi (KLAP Protocol)                             Wi-Fi (HTTP / MQTT)                             │
+                    │                                               │                                        │
+                    ▼                                               ▼                                        │
+        ┌────────────────────────┐                      ┌────────────────────────┐                           │
+        │   Tapo Smart Bulbs     │                      │   Linux Mini PC        │<──────────────────────────┘
+        │   (L530 / L900 etc.)   │                      │ (FastAPI / Transcribe) │
+        └────────────────────────┘                      └────────────────────────┘
+
+
+3.1 Tier 1: The Edge Device (ESP32 Firmware)
+
+Hardware: Elecrow ESP32-S3 3.5" (ILI9488 display, capacitive touch, onboard L330/F1J1 I2S microphone, buzzer/speaker).
+
+Connectivity: Concurrent Wi-Fi (for direct Tapo LAN control and syncing voice notes) and BLE Server (for receiving Tasker notification payloads).
+
+UI/UX Framework: LVGL (Light and Versatile Graphics Library) running a swipeable carousel optimized for responsiveness.
+
+3.2 Tier 2: The Mobile Bridge (Tasker)
+
+Role: Acts as the data transmitter.
+
+Mechanism: Tasker monitors incoming Android notifications. When a notification arrives (SMS, missed call, high-priority app alert), Tasker formats a compact JSON string and transmits it over a persistent BLE serial/characteristic connection to the ESP32.
+
+3.3 Tier 3: Home Server Backend (FastAPI / Python)
+
+Role: Heavy computational lifting, long-form log processing, and AI orchestration.
+
+Integration: Receives uploaded .wav files from the House Phone, processes them through Whisper and local LLMs (Gemma / Qwen), and syncs calendar/task state back to the device.
+
+4. UI/UX & Carousel Layout
+
+To maintain a sleek, appliance-like feel, the display utilizes a dark mode theme with massive touch targets and swipe navigation.
+
+Card 1: The Ambient Home (Direct Tapo Control)
+
+A 2x2 or 3x2 grid of chunky, high-contrast buttons representing rooms or Tapo lighting zones (e.g., "Living Room", "Kitchen", "All Off").
+
+Long-pressing a zone brings up an LVGL slider bound to the tapo.set_brightness() command for that specific IP.
+
+Card 2: The Landline Feed (Notifications)
+
+Displays the latest notifications pushed from your phone via BLE.
+
+Tapping a notification marks it as read or dismisses it on both the device and (optionally) triggers a Tasker action on your phone.
+
+Card 3: Timers & Alarms
+
+Quick-touch presets ("+5 Min", "+15 Min", "Pasta Timer") and an active countdown ring.
+
+Alarm configuration toggle for your bedside routine.
+
+Card 4: Jarvis Voice Capture
+
+Hold the physical BOOT button or tap the screen widget to record a voice note (using the Plaud-style screen-off or low-power state) to sync to your local AI.
+
+5. Implementation Roadmap
+
+Phase 1: BLE Notification Receiver: Implement the ESP32 BLE server code to accept JSON payloads from Tasker and pipe them into an LVGL text queue.
+
+Phase 2: Local Tapo Integration: Include the tapo-esp32 headers into the project. Create the LVGL button grid and wire the touch events to instantiate TapoDevice objects and fire tapo.set_brightness() and tapo.on() commands to your local Tapo IP addresses.
+
+Phase 3: Audio & Timer Subsystems: Finalize the I2S microphone capture driver (utilizing GPIO 45 mic mux) and integrate the hardware buzzer for cooking timers and alarms.
+
+Phase 4: Deep AI & Server Integration: Connect the local audio queue syncing mechanism to your existing FastAPI backend for voice-to-text processing.
