@@ -1,0 +1,34 @@
+server:
+  host: 0.0.0.0
+  port: 8010
+  reload: false
+database:
+  path: jarvis_edge.db
+ollama:
+  host: http://localhost:11434
+  fast_model: phi4-mini:latest
+  heavy_model: gemma4:e4b
+  request_timeout_seconds: 120
+asr:
+  model_size: base
+  device: cpu
+  compute_type: int8
+mqtt:
+  host: localhost
+  port: 1883
+  topic_feed: jarvis/ui/feed
+tapo:
+  email:
+  password:
+audio:
+  path: audio_logs
+  keep_files: true
+jarvis:
+  enabled: false
+  base_url: http://localhost:8000
+  api_prefix: /api/v1
+device:
+  ambient_vad_mode: false
+  power_saving_mode: false
+  screen_off_timeout: 30
+  screen_lock_enabled: true
