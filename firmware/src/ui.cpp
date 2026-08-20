@@ -1,15 +1,16 @@
-// Project  : Jarvis Edge Node
+// Project  : House Phone
 // File     : ui.cpp
 // Purpose  : Builds the persistent status bar + swipeable tile carousel
-// Depends  : ui.h, ui_status_bar.h, ui_screen_feed.h, ui_screen_focus.h, ui_screen_actions.h
+// Depends  : ui.h, ui_status_bar.h, ui_screen_home.h, ui_screen_landline.h,
+//            ui_screen_timers.h, ui_screen_voice.h, ui_screen_settings.h
 
 #include "ui.h"
 #include "ui_status_bar.h"
-#include "ui_screen_feed.h"
-#include "ui_screen_focus.h"
-#include "ui_screen_actions.h"
+#include "ui_screen_home.h"
+#include "ui_screen_landline.h"
+#include "ui_screen_timers.h"
+#include "ui_screen_voice.h"
 #include "ui_screen_settings.h"
-#include "ui_screen_logs.h"
 #include "display.h"
 
 static lv_obj_t * s_tileview     = nullptr;
@@ -34,8 +35,9 @@ void ui_init()
 
     uiStatusBarInit(scr);
 
-    // Smartwatch-style horizontal carousel below the status bar.
-    // Column order: Daily Focus <- Jarvis Feed (home) -> Action Grid -> Settings.
+    // "Digital Sanctuary" carousel (docs/new_idea.txt section 4): Ambient
+    // Home is the default/home tile — swipe right for Landline notifications,
+    // Timers & Alarms, Jarvis Voice Capture, then Settings.
     lv_obj_t * tileview = lv_tileview_create(scr);
     s_tileview = tileview;
     lv_obj_set_size(tileview, UI_SCREEN_W, UI_CAROUSEL_H);
@@ -44,20 +46,20 @@ void ui_init()
     lv_obj_set_style_bg_opa(tileview, LV_OPA_COVER, 0);
     lv_obj_set_style_border_width(tileview, 0, 0);
     lv_obj_set_style_pad_all(tileview, 0, 0);
-    lv_obj_t * tile_focus = lv_tileview_add_tile(tileview, UI_TILE_FOCUS, 0, LV_DIR_HOR);
-    lv_obj_t * tile_feed  = lv_tileview_add_tile(tileview, UI_TILE_FEED, 0, LV_DIR_HOR);
-    lv_obj_t * tile_actions = lv_tileview_add_tile(tileview, UI_TILE_ACTIONS, 0, LV_DIR_HOR);
+    lv_obj_t * tile_home     = lv_tileview_add_tile(tileview, UI_TILE_HOME, 0, LV_DIR_HOR);
+    lv_obj_t * tile_landline = lv_tileview_add_tile(tileview, UI_TILE_LANDLINE, 0, LV_DIR_HOR);
+    lv_obj_t * tile_timers   = lv_tileview_add_tile(tileview, UI_TILE_TIMERS, 0, LV_DIR_HOR);
+    lv_obj_t * tile_voice    = lv_tileview_add_tile(tileview, UI_TILE_VOICE, 0, LV_DIR_HOR);
     lv_obj_t * tile_settings = lv_tileview_add_tile(tileview, UI_TILE_SETTINGS, 0, LV_DIR_HOR);
-    lv_obj_t * tile_logs = lv_tileview_add_tile(tileview, UI_TILE_LOGS, 0, LV_DIR_HOR);
 
-    uiFocusScreenInit(tile_focus);
-    uiFeedScreenInit(tile_feed);
-    uiActionsScreenInit(tile_actions);
+    uiHomeScreenInit(tile_home);
+    uiLandlineScreenInit(tile_landline);
+    uiTimersScreenInit(tile_timers);
+    uiVoiceScreenInit(tile_voice);
     uiSettingsScreenInit(tile_settings);
-    uiLogsScreenInit(tile_logs);
 
-    // Jarvis Feed is home — open there on boot.
-    lv_tileview_set_tile_by_index(tileview, UI_TILE_FEED, 0, LV_ANIM_OFF);
+    // Ambient Home is home — open there on boot.
+    lv_tileview_set_tile_by_index(tileview, UI_TILE_HOME, 0, LV_ANIM_OFF);
 
     // Full-screen "locked" overlay — hidden until Settings > Screen Lock is
     // enabled and the device wakes from a screen-off state (display.cpp).

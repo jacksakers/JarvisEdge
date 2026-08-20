@@ -13,6 +13,9 @@ faster-whisper>=1.0.0          # Local ASR (CTranslate2 Whisper implementation)
 # ── Sync (Phase 4) ────────────────────────────────────────────────────────────
 paho-mqtt>=2.1.0               # Publishes UI updates to the ESP32 over Mosquitto
 
+# ── Ambient Home (Tapo bulb control) ──────────────────────────────────────────
+python-kasa>=0.7.0             # Local KLAP protocol client for TP-Link Tapo/Kasa devices
+
 # ── Config ────────────────────────────────────────────────────────────────────
 PyYAML>=6.0
 pydantic>=2.0

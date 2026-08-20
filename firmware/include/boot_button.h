@@ -1,4 +1,4 @@
-// Project  : Jarvis Edge Node
+// Project  : House Phone
 // File     : boot_button.h
 // Purpose  : Hardware BOOT-button interrupt — public interface
 // Depends  : <Arduino.h>

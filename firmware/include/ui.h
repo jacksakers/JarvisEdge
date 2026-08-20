@@ -1,4 +1,4 @@
-// Project  : Jarvis Edge Node
+// Project  : House Phone
 // File     : ui.h
 // Purpose  : Shared layout constants and public entry point for the LVGL UI
 // Depends  : lvgl.h
@@ -20,14 +20,13 @@
 #define UI_CLR_TEXT      0xF5F5F5
 #define UI_CLR_MUTED     0x8A8A99
 
-// Tile indices within the carousel (Jarvis Feed is the default/home tile).
+// Tile indices within the carousel (Ambient Home is the default/home tile).
 enum ui_tile_id_t {
-    UI_TILE_FOCUS    = 0,
-    UI_TILE_FEED     = 1,
-    UI_TILE_ACTIONS  = 2,
-    UI_TILE_SETTINGS = 3,
-    UI_TILE_LOGS     = 4,
-
+    UI_TILE_HOME      = 0,   // Ambient Home — Tapo bulb grid
+    UI_TILE_LANDLINE  = 1,   // Landline Feed — BLE notifications from Tasker
+    UI_TILE_TIMERS    = 2,   // Timers & Alarms
+    UI_TILE_VOICE     = 3,   // Jarvis Voice Capture
+    UI_TILE_SETTINGS  = 4,
 };
 
 // Builds the persistent status bar + swipeable tile carousel on the active

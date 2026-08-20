@@ -1,4 +1,4 @@
-// Project  : Jarvis Edge Node
+// Project  : House Phone
 // File     : device_heartbeat.cpp
 // Purpose  : Periodic POST /device/heartbeat so the Command Center can tell
 //            whether the device is actually online (docs/sdd.txt gap — the

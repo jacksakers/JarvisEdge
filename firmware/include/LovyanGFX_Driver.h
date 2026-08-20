@@ -1,4 +1,4 @@
-// Project  : Jarvis Edge Node
+// Project  : House Phone
 // File     : LovyanGFX_Driver.h
 // Purpose  : LovyanGFX hardware configuration for the Elecrow 3.5" ESP32-S3 HMI display
 // Depends  : LovyanGFX library

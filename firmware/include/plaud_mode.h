@@ -1,4 +1,4 @@
-// Project  : Jarvis Edge Node
+// Project  : House Phone
 // File     : plaud_mode.h
 // Purpose  : "Plaud mode" state machine — BOOT button toggles screen-off audio capture
 // Depends  : boot_button.h, mic_capture.h, display.h

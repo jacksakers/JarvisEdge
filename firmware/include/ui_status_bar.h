@@ -1,4 +1,4 @@
-// Project  : Jarvis Edge Node
+// Project  : House Phone
 // File     : ui_status_bar.h
 // Purpose  : Persistent top status bar — battery, WiFi, LoRa, queue indicators
 // Depends  : ui.h

@@ -1,4 +1,4 @@
-// Fetch wrapper for the JarvisEdge backend (../backend/app/main.py).
+// Fetch wrapper for the House Phone backend (../backend/app/main.py).
 // The backend host is configurable at runtime (stored in localStorage) since
 // this is a local-network admin tool and the backend IP/port can vary
 // between deployments.
@@ -45,18 +45,22 @@ export const api = {
   clearLogs: () => request('/logs', { method: 'DELETE' }),
   getLogAudioUrl: (id) => `${getBaseUrl()}/logs/${id}/audio`,
 
-  // Daily Focus (full CRUD)
+  // Todo List (full CRUD — Command Center only, not shown on-device)
   getFocus: () => request('/focus'),
   createFocus: (text) => request('/focus', { method: 'POST', body: JSON.stringify({ text }) }),
   updateFocus: (id, body) => request(`/focus/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   toggleFocus: (id) => request(`/focus/${id}/toggle`, { method: 'POST' }),
   deleteFocus: (id) => request(`/focus/${id}`, { method: 'DELETE' }),
 
-  // Action Grid
-  triggerAction: (type, text = '') => request(`/actions/${type}`, { method: 'POST', body: JSON.stringify({ text }) }),
-  getActions: (limit = 50) => request(`/actions?limit=${limit}`),
-  deleteAction: (id) => request(`/actions/${id}`, { method: 'DELETE' }),
-  clearActions: () => request('/actions', { method: 'DELETE' }),
+  // Ambient Home (Tapo bulb zones)
+  getTapoZones: () => request('/tapo/zones'),
+  createTapoZone: (body) => request('/tapo/zones', { method: 'POST', body: JSON.stringify(body) }),
+  updateTapoZone: (id, body) => request(`/tapo/zones/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  deleteTapoZone: (id) => request(`/tapo/zones/${id}`, { method: 'DELETE' }),
+  toggleTapoZone: (id) => request(`/tapo/zones/${id}/toggle`, { method: 'POST' }),
+  setTapoBrightness: (id, brightness) =>
+    request(`/tapo/zones/${id}/brightness`, { method: 'POST', body: JSON.stringify({ brightness }) }),
+  tapoAllOff: () => request('/tapo/zones/all_off', { method: 'POST' }),
 
   // JARVIS 3.0 integration
   getJarvisStatus: () => request('/jarvis/status'),

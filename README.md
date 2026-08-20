@@ -1,19 +1,24 @@
-# Jarvis Edge Node
+# House Phone
 
-A purpose-built, dedicated mobile hardware interface for the local home AI
-framework ("Jarvis" — see the [JARVIS](../JARVIS) repo for the backend/
-frontend). The Edge Node is a frictionless capture point for daily logs,
-thoughts, and tasks, running on an Elecrow ESP32-S3 3.5" touchscreen with
-LoRa, SD storage, and an onboard microphone.
+A purpose-built, dedicated mobile hardware interface that replaces your
+smartphone once you're home. Built on an Elecrow ESP32-S3 3.5" touchscreen
+with SD storage and an onboard microphone, it relays phone notifications
+over BLE, controls Tapo smart lighting directly over the LAN, runs cooking
+timers and a bedside alarm, and captures local AI voice notes through the
+local home AI framework ("Jarvis" — see the [JARVIS](../JARVIS) repo for the
+optional full agent backend/frontend). This project started as "Jarvis Edge
+Node" — see [docs/new_idea.txt](docs/new_idea.txt) for the pivot proposal.
 
 ## Documentation
 
 - [docs/sdd.txt](docs/sdd.txt) — System Design Document: architecture, UI/UX,
-  and core workflows across the three tiers (edge firmware, home server,
-  admin frontend).
+  and core workflows across the four tiers (edge firmware, home server,
+  mobile bridge, admin frontend).
 - [docs/plan.txt](docs/plan.txt) — Phased implementation roadmap.
 - [docs/coding.txt](docs/coding.txt) — Coding standards for the C++/Python/JS
   stacks used across the project.
+- [docs/new_idea.txt](docs/new_idea.txt) — the original House Phone pivot
+  proposal (implemented — kept as the project's vision doc).
 
 ## Repository layout
 
@@ -21,8 +26,8 @@ LoRa, SD storage, and an onboard microphone.
 JarvisEdge/
   docs/        System design, coding standards, and phased plan
   firmware/    ESP32-S3 PlatformIO project (LovyanGFX + LVGL UI shell)
-  backend/     FastAPI home-server backend (audio ingestion, ASR, dual-tier LLM routing)
-  frontend/    Vite + React admin frontend ("Command Center": Feed/Focus/Actions/Logs/JARVIS/Prompts/Settings)
+  backend/     FastAPI home-server backend (audio ingestion, ASR, dual-tier LLM routing, Tapo control)
+  frontend/    Vite + React admin frontend ("Command Center": Voice Capture/Ambient Home/Todo List/Voice Logs/JARVIS/Prompts/Settings)
 ```
 
 ## Quickstart
@@ -49,60 +54,55 @@ Prerequisites the scripts don't install for you: a running
 from `backend/config.yaml` pulled, and (optionally) a local MQTT broker such
 as Mosquitto — see [backend/README.md](backend/README.md) for details. The
 backend still works without MQTT; it just won't push live updates to the
-device.
+device. Ambient Home (Tapo bulb control) needs a Tapo account email/password
+set in the Command Center's Settings page, and Landline Feed (BLE
+notifications) needs a Tasker profile on your phone — see
+[firmware/README.md](firmware/README.md).
 
 **"address already in use" on port 8000?** That's a different, unrelated
-project's dev server (not JarvisEdge) already bound to that port on this
-machine. The backend now defaults to port **8010** instead (`config.yaml`
-`server.port`) specifically to avoid that clash — pull the latest changes
-and the conflict goes away. If your ESP32 was already flashed with the old
-default backend port, open the **Settings** tile on the device and update
-the backend port there (no reflash needed).
+project's dev server (not this one) already bound to that port on this
+machine. The backend defaults to port **8010** instead (`config.yaml`
+`server.port`) specifically to avoid that clash. If your ESP32 was already
+flashed with the old default backend port, open the **Settings** tile on the
+device and update the backend port there (no reflash needed).
 
 ## Status
 
-**Phase 1 — Hardware Baseline & UI Shell: implemented.**
-**Phase 2 — Audio & Offline Mode ("Plaud" feature): implemented.**
-**Phase 4 — Synchronization & MQTT: implemented.**
-See [firmware/README.md](firmware/README.md) for build instructions and
-architecture notes.
+**Jarvis Edge Node foundation (Phases 1-6): implemented.** Hardware
+baseline + LVGL UI shell, offline audio queue + "Plaud mode", the FastAPI
+backend's dual-tier LLM routing, WiFi/MQTT sync, the Command Center
+frontend, and optional JARVIS 3.0 integration. See
+[docs/plan.txt](docs/plan.txt) for the phase-by-phase history.
 
-**Phase 3 — Backend API & AI Routing: implemented.**
-See [backend/README.md](backend/README.md) for setup, configuration, and
-the manual test procedure.
+**House Phone pivot (Phases 7-10): implemented.** Three new carousel tiles
+replace the old Daily Focus/Action Grid tiles:
 
-**Phase 5 — On-device Settings + Command Center: implemented.** The
-firmware has a fourth carousel tile for managing WiFi/backend/MQTT config
-from the device itself (see firmware/README.md); the backend exposes
-`/settings`, `/models`, and `/prompts` (see backend/README.md); and
-[frontend/](frontend) is a Vite + React app with Settings/Prompts/Data
-pages consuming those endpoints. Run it with `cd frontend && npm install &&
-npm run dev`.
+- **Ambient Home** — a grid of Tapo bulb zones. Tap to toggle, long-press
+  for brightness, "All Off" to clear the room. Control is routed through
+  the backend's `app/tapo.py` (`python-kasa`, local KLAP protocol) rather
+  than reimplementing Tapo's auth/crypto handshake in firmware — configure
+  zones and your Tapo account login from the Command Center's Ambient Home
+  and Settings pages. See [backend/README.md](backend/README.md).
+- **Landline Feed** — a BLE GATT server (`firmware/src/ble_notifications.cpp`,
+  advertises as "House Phone") that a Tasker profile on your phone can write
+  Android notifications to; shown as dismissible cards. See
+  [firmware/README.md](firmware/README.md) for the JSON schema and Tasker
+  setup notes.
+- **Timers & Alarms** — cooking countdown presets and a bedside wall-clock
+  alarm, both driving the onboard buzzer, fully on-device
+  (`firmware/src/timers_alarms.cpp`). The buzzer pin has not been confirmed
+  against real hardware yet — see the file header before flashing.
 
-**Phase 6 — Full CRUD, JARVIS 3.0 integration & Command Center rebuild: implemented.**
-The Daily Focus and Action Grid tiles now actually do something end-to-end:
+The Jarvis Voice Capture tile (formerly "Jarvis Feed") and the on-device
+Settings tile are unchanged. The old Daily Focus/Action Grid device tiles
+are gone; the to-do list they fed still exists as a Command-Center-only
+**Todo List** page (`frontend/src/pages/TodoPage.jsx`), still populated by
+the heavy LLM tier's task extraction from voice notes.
 
-- **Backend** gained full CRUD for `FocusItem` (`/focus*`) and `ActionEvent`
-  (`/actions/*`), plus an optional best-effort bridge to a full JARVIS 3.0
-  instance (`app/jarvis_client.py`, `/jarvis/status`, `/jarvis/feed`) —
-  notes can be forwarded to JARVIS's journal and heavy-tier tasks can be
-  delegated to it. See [backend/README.md](backend/README.md).
-- **Firmware** gained `edge_api.h`/`.cpp`, a small fire-and-forget HTTP
-  client (Core-0 FreeRTOS tasks) so tapping a Daily Focus item or an Action
-  Grid tile actually calls the backend instead of just updating local state.
-  Daily Focus items now carry a backend id (via the `jarvis/ui/focus` MQTT
-  payload) so a tap syncs back with `POST /focus/{id}/toggle`; Note/Alert
-  tiles pop an on-device keyboard overlay before POSTing to
-  `/actions/{action_type}`. See [firmware/README.md](firmware/README.md).
-- **Frontend** was fully rebuilt as a proper Command Center: a
-  glass/cyan design system shared with JARVIS 3.0, client-side routing
-  (`react-router-dom`), and dedicated pages for the live Jarvis Feed +
-  quick actions, Daily Focus CRUD, the Action Grid (trigger + history),
-  Voice Logs, JARVIS 3.0 link status, Prompts, and Settings (now including
-  the JARVIS enable/base-URL fields and a Test Connection button). See
-  [frontend/README.md](frontend/README.md).
+Note: raw audio is deleted from the device queue right after transcription
+(privacy-by-design), so there's no stored audio to visualize — the
+frontend's "waveform" on the Voice Capture page is a decorative activity
+indicator tied to log status, not a literal recording playback. BLE
+notifications are similarly ephemeral — never persisted to SD or the
+backend, matching a real phone's notification shade.
 
-Note: raw audio is deleted from the device queue and the backend right
-after transcription (privacy-by-design), so there's no stored audio to
-visualize — the frontend's "waveform" is a decorative activity indicator
-tied to log status, not a literal recording playback.

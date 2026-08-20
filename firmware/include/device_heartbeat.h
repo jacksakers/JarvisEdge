@@ -1,4 +1,4 @@
-// Project  : Jarvis Edge Node
+// Project  : House Phone
 // File     : device_heartbeat.h
 // Purpose  : Periodic POST /device/heartbeat so the Command Center can tell
 //            whether the device is actually online — public interface

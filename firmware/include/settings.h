@@ -1,4 +1,4 @@
-// Project  : Jarvis Edge Node
+// Project  : House Phone
 // File     : settings.h
 // Purpose  : Persistent key-value settings stored on SD card — public interface
 // Depends  : sd_card.h
@@ -53,3 +53,7 @@ void settingsSetScreenOffTimeout(int seconds);
 
 bool settingsGetScreenLockEnabled();
 void settingsSetScreenLockEnabled(bool enabled);
+
+// ── Bedside alarm accessors (Timers & Alarms tile) ────────────────────────
+void settingsGetAlarm(int * hour, int * minute, bool * enabled);
+void settingsSetAlarm(int hour, int minute, bool enabled);

@@ -1,9 +1,9 @@
-// Project  : Jarvis Edge Node
-// File     : ui_screen_feed.cpp
-// Purpose  : "Jarvis Feed" home tile — most recent AI confirmation/alert
-// Depends  : ui_screen_feed.h
+// Project  : House Phone
+// File     : ui_screen_voice.cpp
+// Purpose  : "Jarvis Voice Capture" tile — record button + last AI confirmation
+// Depends  : ui_screen_voice.h
 
-#include "ui_screen_feed.h"
+#include "ui_screen_voice.h"
 #include "ui.h"
 #include "plaud_mode.h"
 
@@ -24,14 +24,14 @@ static void record_btn_event_cb(lv_event_t * e)
     set_record_button_state(plaudModeToggleManualRecording());
 }
 
-void uiFeedScreenInit(lv_obj_t * tile)
+void uiVoiceScreenInit(lv_obj_t * tile)
 {
     lv_obj_set_style_bg_color(tile, lv_color_hex(UI_CLR_BG), 0);
     lv_obj_set_style_bg_opa(tile, LV_OPA_COVER, 0);
     lv_obj_remove_flag(tile, LV_OBJ_FLAG_SCROLLABLE);
 
     lv_obj_t * hint = lv_label_create(tile);
-    lv_label_set_text(hint, "JARVIS FEED");
+    lv_label_set_text(hint, "JARVIS VOICE CAPTURE");
     lv_obj_set_style_text_color(hint, lv_color_hex(UI_CLR_MUTED), 0);
     lv_obj_set_style_text_font(hint, &lv_font_montserrat_12, 0);
     lv_obj_align(hint, LV_ALIGN_TOP_MID, 0, 14);
@@ -67,7 +67,7 @@ void uiFeedScreenInit(lv_obj_t * tile)
     lv_obj_center(s_record_lbl);
 }
 
-void uiFeedSetText(const char * text)
+void uiVoiceSetText(const char * text)
 {
     if(!s_feed_label || !text) return;
     lv_label_set_text(s_feed_label, text);

@@ -1,4 +1,4 @@
-// Project  : Jarvis Edge Node
+// Project  : House Phone
 // File     : mic_capture.h
 // Purpose  : I2S mic -> WAV-on-SD streaming capture (unbounded duration)
 // Depends  : sd_card.h, <driver/i2s.h>, <SD.h>

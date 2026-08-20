@@ -1,8 +1,8 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import AppShell from './components/AppShell.jsx'
 import DashboardPage from './pages/DashboardPage.jsx'
-import FocusPage from './pages/FocusPage.jsx'
-import ActionsPage from './pages/ActionsPage.jsx'
+import TodoPage from './pages/TodoPage.jsx'
+import TapoPage from './pages/TapoPage.jsx'
 import LogsPage from './pages/LogsPage.jsx'
 import JarvisPage from './pages/JarvisPage.jsx'
 import PromptsPage from './pages/PromptsPage.jsx'
@@ -14,8 +14,8 @@ function App() {
       <Routes>
         <Route element={<AppShell />}>
           <Route index element={<DashboardPage />} />
-          <Route path="focus" element={<FocusPage />} />
-          <Route path="actions" element={<ActionsPage />} />
+          <Route path="todo" element={<TodoPage />} />
+          <Route path="tapo" element={<TapoPage />} />
           <Route path="logs" element={<LogsPage />} />
           <Route path="jarvis" element={<JarvisPage />} />
           <Route path="prompts" element={<PromptsPage />} />

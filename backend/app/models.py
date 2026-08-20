@@ -46,20 +46,24 @@ class FocusItem(SQLModel, table=True):
     log_entry_id: Optional[int] = None
 
 
-class ActionEvent(SQLModel, table=True):
+class TapoZone(SQLModel, table=True):
     """
-    A manual trigger from the device's Action Grid (or the Command Center's
-    mirrored quick-action buttons). Kept as history so the frontend has a
-    real log to browse instead of the buttons doing nothing.
+    One TP-Link Tapo smart bulb/strip, shown as a tile on the device's
+    "Ambient Home" carousel card (docs/new_idea.txt section 4, Card 1).
+
+    Control is routed through the backend (see app/tapo.py) rather than the
+    ESP32 talking KLAP directly — the local-network auth/encryption handshake
+    lives in the actively-maintained python-kasa library instead of hand
+    rolled firmware crypto. `on`/`brightness` are the last-known state (best
+    effort cache); the live state is re-polled from the bulb on every
+    GET /tapo/zones.
     """
 
     id: Optional[int] = Field(default=None, primary_key=True)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
-    # "time_track" | "note" | "alert" | "dismiss"
-    action_type: str
-    # Free-text payload — the note body for "note", the alert message for
-    # "alert", empty for "time_track"/"dismiss".
-    text: str = ""
-    # Set if this action was also forwarded to the JARVIS 3.0 journal/tasks API.
-    jarvis_synced: bool = False
+    name: str
+    room: str = ""
+    ip: str
+    on: bool = False
+    brightness: int = 100

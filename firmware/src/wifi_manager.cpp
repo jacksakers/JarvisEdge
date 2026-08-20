@@ -1,4 +1,4 @@
-// Project  : Jarvis Edge Node
+// Project  : House Phone
 // File     : wifi_manager.cpp
 // Purpose  : Non-blocking WiFi connection + status bar wiring
 // Depends  : wifi_manager.h, network_config.h, ui_status_bar.h

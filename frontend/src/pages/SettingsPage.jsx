@@ -52,6 +52,8 @@ export default function SettingsPage() {
         mqtt_port: Number(settings.mqtt_port),
         jarvis_enabled: !!settings.jarvis_enabled,
         jarvis_base_url: settings.jarvis_base_url,
+        tapo_email: settings.tapo_email,
+        tapo_password: settings.tapo_password,
         ambient_vad_mode: !!settings.ambient_vad_mode,
         power_saving_mode: !!settings.power_saving_mode,
         screen_off_timeout: Number(settings.screen_off_timeout ?? 30),
@@ -179,6 +181,31 @@ export default function SettingsPage() {
               {testResult.connected ? 'Connected' : testResult.error || 'Unreachable'}
             </span>
           )}
+        </div>
+      </section>
+
+      <section className="glass rounded-2xl p-5 space-y-4">
+        <h2 className="text-xs uppercase tracking-widest text-jarvis-muted">Ambient Home (Tapo)</h2>
+        <p className="text-xs text-jarvis-muted -mt-2">
+          Same login as the Tapo app. Zones (bulb IPs/rooms) are managed on the Ambient Home page.
+        </p>
+        <div className="grid grid-cols-2 gap-4">
+          <Field label="Account email">
+            <input
+              type="text"
+              value={settings.tapo_email || ''}
+              onChange={(e) => update('tapo_email', e.target.value)}
+              className={inputClass}
+            />
+          </Field>
+          <Field label="Account password">
+            <input
+              type="password"
+              value={settings.tapo_password || ''}
+              onChange={(e) => update('tapo_password', e.target.value)}
+              className={inputClass}
+            />
+          </Field>
         </div>
       </section>
 

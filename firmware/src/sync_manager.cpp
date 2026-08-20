@@ -1,4 +1,4 @@
-// Project  : Jarvis Edge Node
+// Project  : House Phone
 // File     : sync_manager.cpp
 // Purpose  : Auto-sync loop — uploads queued recordings to the Phase 3 backend
 //            and deletes them locally on success (docs/sdd.txt 4.2)
@@ -17,7 +17,6 @@
 #include "plaud_mode.h"
 #include "sd_card.h"
 #include "ui_status_bar.h"
-#include "ui_screen_logs.h"
 #include <Arduino.h>
 #include <WiFi.h>
 #include <HTTPClient.h>
@@ -141,7 +140,6 @@ static UploadResult upload_one(const String &path, size_t file_len)
                         log_f.printf("[%s] %s\n", time_str, transcript);
                         log_f.close();
                         Serial.println("[Sync] Saved transcript to SD card: /logs/history.txt");
-                        uiLogsScreenReload();
                     }
                 }
             }

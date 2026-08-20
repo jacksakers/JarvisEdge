@@ -24,6 +24,8 @@ I2S Buffering: When reading from the I2S microphone, use double-buffering. Read 
 
 Interrupts: Use hardware interrupts (attachInterrupt) for the physical BOOT button. Keep the ISR (Interrupt Service Routine) extremely short—simply set a boolean flag is_recording = true; and let the main loop handle the heavy lifting of turning off the screen and opening the SD file.
 
+BLE callbacks: BLE GATT write callbacks (e.g. ble_notifications.cpp) run on the Bluedroid/NimBLE host task, not the LVGL/main-loop thread. Never touch LVGL objects directly from one — write into a plain buffer and set a flag, then let a per-loop() Handle() function consume it and update the UI, same pattern as the BOOT button ISR above.
+
 3. Backend (Python / FastAPI)
 
 3.1 API Structure
@@ -37,6 +39,10 @@ Background Tasks: Use fastapi.BackgroundTasks for the heavy LLM processing so th
 3.2 Prompt Engineering & Routing
 
 Separate system prompts into a configuration file (prompts.yaml or in the SQLite DB) rather than hardcoding them in the Python logic. This allows the Vite frontend to update them dynamically.
+
+3.3 Third-party device protocols
+
+Protocols with real auth/crypto handshakes for third-party hardware (e.g. Tapo's local KLAP protocol, see app/tapo.py) belong on the backend using a maintained library, not reimplemented in firmware — matches the "keep the ESP32 dumb" principle in 2.1. The device should only ever need to speak plain HTTP to a server we control.
 
 4. Frontend (Vite / React/Vue)
 

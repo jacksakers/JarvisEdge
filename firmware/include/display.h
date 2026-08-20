@@ -1,4 +1,4 @@
-// Project  : Jarvis Edge Node
+// Project  : House Phone
 // File     : display.h
 // Purpose  : Display, touch, and LVGL initialisation — public interface
 // Depends  : LovyanGFX_Driver.h, lvgl.h

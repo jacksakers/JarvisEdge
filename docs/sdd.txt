@@ -1,107 +1,176 @@
-System Design Document: Jarvis Edge Node
+System Design Document: House Phone
 
 1. Executive Summary
 
-The Jarvis Edge Node is a purpose-built, dedicated mobile hardware interface for a local home AI framework ("Jarvis"). Utilizing an Elecrow ESP32 3.5-inch touchscreen device with LoRa, SD card storage, and an onboard microphone, the device serves as a frictionless capture point for daily logs, thoughts, and tasks. It operates on a dual-tier AI architecture, providing instant, lightweight responses on the edge while queuing heavy processing tasks for the home server.
+House Phone is a dedicated, distraction-free edge device that replaces your
+smartphone once you're home. Built on the Elecrow ESP32-S3 3.5" touchscreen
+module (the same hardware the project started on as "Jarvis Edge Node"), it
+acts as a modern landline terminal and smart-home command center: it relays
+phone notifications over BLE, controls Tapo smart lighting directly over the
+LAN, runs cooking timers and a bedside alarm, and still captures local AI
+voice notes through the original Jarvis dual-tier LLM pipeline. See
+docs/new_idea.txt for the original pivot proposal this document implements.
 
 2. System Architecture
 
-The system operates across three distinct tiers:
+The system operates across four tiers:
 
-2.1 Edge Device (ESP32 Firmware)
+2.1 Edge Device (ESP32-S3 Firmware)
 
-Role: Data capture, UI rendering, offline storage.
+Role: Data capture, UI rendering, offline storage, BLE notification relay,
+direct local timers/alarms.
 
-Hardware: Elecrow ESP32 3.5" (ESP32-S3 recommended for I2S Mic/Speaker support).
+Hardware: Elecrow CrowPanel Advance 3.5" ESP32-S3 (ILI9488 480x320 SPI
+panel, GT911 capacitive touch, onboard PDM microphone, microSD).
 
-Display: ILI9488 driver, 480x320 resolution, Capacitive touch.
+Core Logic: C++ (Arduino framework via PlatformIO).
 
-Core Logic: C++ (Arduino IDE or ESP-IDF).
+UI Framework: LVGL v9 — a persistent status bar over a horizontal
+`lv_tileview` carousel, "Digital Sanctuary" style (see section 3).
 
-UI Framework: LVGL (Light and Versatile Graphics Library) for snappy, native-feeling rendering.
+Connectivity: WiFi (HTTP to the backend, MQTT for push-back) and a BLE GATT
+server (receives Tasker-relayed Android notifications). WiFi + BLE run
+concurrently on the ESP32's shared radio via the IDF's built-in coexistence
+handling — no extra firmware work is required for that, but expect BLE
+throughput to dip during a large WiFi upload (e.g. a queued voice note
+syncing) and vice versa.
 
-Offline Queue: Micro SD card utilizing the standard SD.h library to store .wav audio files and local UI assets.
+Offline Queue: microSD card (dedicated SPI3/HSPI bus) stores `.wav` voice
+recordings pending upload, and persists on-device settings (WiFi/backend/
+MQTT/alarm config) as simple key=value text files.
 
 2.2 Home Server Backend (FastAPI / Python)
 
-Role: Central hub, AI routing, database management, and MQTT broker communication.
+Role: Central hub — AI routing, database, MQTT broker communication, and
+Tapo bulb control (docs/coding.txt 2.1 — keep the edge device "dumb").
 
-Environment: Linux Mini PC.
+Environment: Any always-on Linux machine on the same LAN (a "Linux Mini PC"
+in the original write-up).
 
-API Framework: FastAPI, utilizing WebSockets for real-time audio ingestion and HTTP REST for status checks.
+API Framework: FastAPI, HTTP REST throughout (no WebSockets currently used).
 
-AI Orchestration:
+AI Orchestration (unchanged from the original Jarvis Edge Node design):
+  - Transcription: local ASR (faster-whisper, CPU).
+  - Fast LLM tier: lightweight model via Ollama for an immediate reply.
+  - Heavy LLM tier: larger model for background structuring — extracted
+    to-dos land in the Command Center's Todo List.
 
-Transcription: Local ASR (e.g., Whisper, Qwen-ASR).
+Ambient Home / Tapo control: the backend, not the ESP32, speaks the Tapo
+KLAP local protocol (via the `python-kasa` library) to each bulb's own LAN
+IP. The device's Ambient Home grid only ever calls simple REST endpoints on
+the backend (`/tapo/zones/*`) — the tricky auth/encryption handshake lives
+in a maintained library on the server, not hand-rolled firmware crypto.
 
-Fast LLM Tier: Lightweight model (e.g., Qwen3 8B, Phi-4-mini) via Ollama for immediate UI feedback.
+Communication: Paho-MQTT pushes the Jarvis Voice Capture confirmation text
+to the ESP32 the moment the fast-tier reply is ready.
 
-Heavy LLM Tier: High-capacity model (e.g., Gemma 4 31B) for batch-processing daily logs into structured data.
+2.3 Mobile Bridge (Tasker on the paired Android phone)
 
-Communication: Paho-MQTT or fastapi-mqtt to push JSONL UI updates to the ESP32.
+Role: Notification transmitter — no app development required, just a Tasker
+profile using a BLE/GATT plugin.
 
-2.3 Administration Frontend (Vite / React)
+Mechanism: Tasker watches for incoming Android notifications (SMS, missed
+call, high-priority app alerts) and writes a compact JSON payload to the
+ESP32's BLE notification characteristic (schema + setup notes in
+firmware/include/ble_notifications.h). The ESP32 advertises as "House
+Phone".
 
-Role: Control center, prompt engineering, queue monitoring, and long-form data review.
+2.4 Administration Frontend ("Command Center" — Vite / React)
 
-Stack: Vite + React (or Vue).
+Role: Configuration and long-form review — anything too fiddly for a 3.5"
+touchscreen with an on-screen keyboard lives here instead: Tapo zone setup
+(bulb IPs/rooms), the Todo List, prompt engineering, JARVIS 3.0 integration
+status, and Ollama/MQTT/Tapo account settings.
 
-Features: Dashboard for to-do lists, settings for toggling AI models, and manual UI template editing.
+Stack: Vite + React, Tailwind CSS, `react-router-dom`, `framer-motion`.
 
 3. User Interface & Experience (UI/UX)
 
-The UI must prioritize speed and tactile reliability over dense information displays.
+"Digital Sanctuary" principle: when you're home, the House Phone should be
+enough — no unlocking your actual phone for a light switch, a timer, or the
+gist of a text message. The UI stays a five-tile swipeable carousel (no
+nested menus), high-contrast dark theme:
 
-Interaction Model: Smartwatch-style swipeable carousel. Avoid nested menus.
+Persistent Status Bar: WiFi, battery, upload-queue badge.
 
-Theme: High-contrast Dark Mode (saves battery, masks LCD refresh rates).
+Card 1 — Ambient Home (default/home tile): a grid of Tapo bulb zones. Tap a
+zone to toggle it on/off; long-press for a brightness slider; a top-corner
+"All Off" button clears every zone at once. Zones (name/room/IP) are
+configured from the Command Center's Ambient Home page, not on-device.
 
-Key Views:
+Card 2 — Landline Feed: a scrollable list of BLE-relayed phone
+notifications (app / title / text). Tap a card to dismiss it, same gesture
+as swiping away a real phone notification.
 
-Persistent Status Bar: Battery, Wi-Fi, LoRa, Queue Status.
+Card 3 — Timers & Alarms: three cooking presets (+5 Min / +15 Min / Pasta
+10 Min) driving a countdown display, plus a bedside wall-clock alarm
+(hour/minute rollers + enable switch). Both share the onboard buzzer; the
+whole tile flashes red and blocks touch until dismissed ("Tap to silence")
+while ringing.
 
-Jarvis Feed (Home): Displays the most recent AI confirmation or alert in a large, readable font.
+Card 4 — Jarvis Voice Capture: unchanged from the original design — a large
+Record button and a confirmation label fed by the backend's fast-tier reply
+over MQTT. Holding the physical BOOT button still works too (see 4.1).
 
-Daily Focus: Top 3 actionable items pushed from the server. Tap to strike through.
-
-Action Grid: 2x2 grid of massive manual trigger buttons (Time Track, Note, Alert, Dismiss).
-
-The "Plaud" Mode: When the physical BOOT button is held, the screen backlight turns off entirely (saving power and CPU cycles), and the device immediately begins routing I2S microphone data directly to the SD card.
+Card 5 — Settings: on-device WiFi/backend/MQTT config, Ambient VAD and
+power-saving toggles, and screen lock/timeout — unchanged from the original
+Jarvis Edge Node Settings tile. (Tapo account credentials and zone CRUD live
+in the Command Center instead, since they need a full keyboard and are
+edited far less often.)
 
 4. Core Workflows
 
-4.1 Audio Capture & Offline Queuing
+4.1 Audio Capture & Offline Queuing (unchanged)
 
-User presses the physical BOOT button.
+Holding the physical BOOT button (or tapping Record on Card 4) kills the
+display backlight (BOOT only) and streams I2S microphone audio into PSRAM;
+releasing/tapping again writes the buffered audio to `/queue/*.wav` on the
+SD card. See firmware/src/mic_capture.cpp and plaud_mode.cpp.
 
-ESP32 kills the UI rendering loop and turns off the display backlight.
+4.2 Auto-Sync & Voice Capture Confirmation (unchanged)
 
-ESP32 captures I2S audio and writes a .wav file to /queue/ on the SD card.
+The ESP32's background sync task uploads queued `.wav` files to
+`POST /upload/audio`; the backend transcribes, gets a fast-tier reply, and
+publishes it over MQTT (`jarvis/ui/feed`) for Card 4 to display immediately.
+The heavy tier then runs in the background and any extracted to-dos land in
+the Command Center's Todo List (Command-Center-only, no on-device tile).
 
-User presses BOOT again; the screen wakes up, and the UI resumes.
+4.3 Ambient Home (Tapo control)
 
-4.2 Auto-Sync & Fast Response
+1. User taps/long-presses a zone tile on Card 1.
+2. Firmware fires a fire-and-forget POST to the backend
+   (`/tapo/zones/{id}/toggle` or `/brightness`).
+3. The backend connects directly to that bulb's LAN IP via `python-kasa`
+   (KLAP protocol) and applies the change.
+4. Every few seconds, the firmware polls `GET /tapo/zones` and repaints the
+   grid from the bulbs' actual reported state — so the grid stays correct
+   even if a bulb was changed from the Tapo app instead.
 
-ESP32 connects to the home Wi-Fi network.
+4.4 Landline Feed (BLE notification relay)
 
-Background task iterates through /queue/*.wav.
+1. Tasker on the paired phone detects a new Android notification.
+2. Tasker writes a JSON payload to the ESP32's BLE characteristic.
+3. The BLE write callback parses it and pushes it into an in-RAM ring
+   buffer (`firmware/src/ble_notifications.cpp`) — nothing is sent to the
+   backend or persisted to SD; it's ephemeral, matching a real phone's
+   notification shade.
+4. Card 2 polls for new arrivals once per `loop()` iteration and refreshes.
 
-Audio is POSTed to the FastAPI server.
+4.5 Timers & Alarms
 
-Server transcribes the audio and queries the "Fast LLM".
+Countdown presets and the bedside alarm are both handled entirely on-device
+(`firmware/src/timers_alarms.cpp`) — no backend round-trip. The wall-clock
+alarm compares against NTP-synced local time (via the same
+`configTzTime()` call `wifi_manager.cpp` already made on WiFi connect), so
+it will not be accurate until the device has synced time at least once
+after a reboot.
 
-Server publishes an MQTT payload containing the AI's short response.
+5. Hardware Notes Carried Over From Jarvis Edge Node
 
-ESP32 receives the MQTT payload and immediately updates the "Jarvis Feed" LVGL text block.
-
-Original .wav is deleted from the SD card.
-
-4.3 Heavy Batch Processing
-
-Following transcription, the FastAPI server pushes the raw text to a background Celery/Redis queue or native Python background task.
-
-The "Heavy LLM" processes the text (e.g., parsing a rambling thought into a structured to-do list).
-
-The server updates the SQLite database.
-
-The server pushes a new MQTT payload to update the ESP32's "Daily Focus" card.
+- The onboard mic and the microSD slot share hardware and cannot be used
+  simultaneously — recordings are buffered fully in PSRAM during capture
+  and only touch the SD card once, after the I2S driver is uninstalled.
+- The buzzer pin used by Timers & Alarms (`TIMER_BUZZER_PIN` in
+  firmware/src/timers_alarms.cpp) has **not** been confirmed against a real
+  House Phone board revision — verify it before flashing, same caveat that
+  already applied to the SD card pin map.

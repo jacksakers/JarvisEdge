@@ -78,7 +78,7 @@ function FocusRow({ item, onToggle, onDelete, onEdit }) {
   )
 }
 
-export default function FocusPage() {
+export default function TodoPage() {
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
   const [newText, setNewText] = useState('')
@@ -130,10 +130,10 @@ export default function FocusPage() {
   return (
     <div className="max-w-2xl mx-auto space-y-6 animate-fade-in">
       <div>
-        <h1 className="text-lg font-semibold text-white">Daily Focus</h1>
+        <h1 className="text-lg font-semibold text-white">Todo List</h1>
         <p className="text-xs text-jarvis-muted mt-1">
-          Top 3 undone items are pushed to the device's Daily Focus tile over MQTT. Tapping a row on-device
-          syncs back here automatically.
+          Add items manually, or hold BOOT on the device to capture a thought — the heavy AI tier
+          pulls out any to-dos it hears and adds them here automatically.
         </p>
       </div>
 
@@ -142,7 +142,7 @@ export default function FocusPage() {
           value={newText}
           onChange={(e) => setNewText(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && addItem()}
-          placeholder="Add a focus item…"
+          placeholder="Add a to-do…"
           className="flex-1 bg-jarvis-surface border border-jarvis-border rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-jarvis-cyan/50"
         />
         <button

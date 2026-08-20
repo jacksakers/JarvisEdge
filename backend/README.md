@@ -1,9 +1,9 @@
-# Jarvis Edge Node — Backend
+# House Phone — Backend
 
-FastAPI service implementing **Phase 3** and **Phase 4** of
-[../docs/plan.txt](../docs/plan.txt): audio ingestion, local transcription,
-dual-tier LLM routing, and MQTT push-back so the ESP32 can display AI
-responses without polling.
+FastAPI service implementing the Jarvis dual-tier AI pipeline (audio
+ingestion, local transcription, LLM routing, MQTT push-back) plus Ambient
+Home Tapo bulb control for the House Phone pivot (see
+[../docs/sdd.txt](../docs/sdd.txt)).
 
 ## Architecture
 
@@ -26,11 +26,14 @@ ESP32 --(multipart WAV)--> POST /upload/audio
                                  ▼
                      LogEntry row updated (status="processed")
                                  │
-                                 └──> app/mqtt.py publish("jarvis/ui/focus", {"tasks": [...]})
+                                 └──> extracted to-dos saved as FocusItem rows (Command Center's Todo List)
+
+ESP32 --(fire-and-forget POST)--> /tapo/zones/{id}/toggle | /brightness
+ESP32 <--(periodic GET)---------- /tapo/zones                              app/tapo.py (python-kasa, KLAP protocol) <──> Tapo bulb LAN IP
 ```
 
-See [../docs/sdd.txt](../docs/sdd.txt) sections 2.2/4.2/4.3 for the full
-system design this implements.
+See [../docs/sdd.txt](../docs/sdd.txt) for the full system design this
+implements.
 
 ## Setup
 
@@ -48,26 +51,21 @@ model weights (`asr.model_size` in `config.yaml`) from Hugging Face.
 ## Configuration
 
 - `config.yaml` — server host/port, SQLite path, Ollama host + model names,
-  ASR model size/device, and the `mqtt` section (broker host/port + topic
-  names).
+  ASR model size/device, `mqtt` (broker host/port + feed topic), and `tapo`
+  (Tapo account email/password for Ambient Home).
 - `prompts.yaml` — system prompts for the fast and heavy LLM tiers (kept out
   of Python source per [../docs/coding.txt](../docs/coding.txt) 3.2 so the
-  Vite frontend can edit them in Phase 5).
+  Vite frontend can edit them).
 
-### MQTT push-back (Phase 4)
+### MQTT push-back
 
-The backend publishes UI updates via [Mosquitto](https://mosquitto.org/) (or
-any MQTT broker) so the ESP32 can update its screen the moment a response is
-ready, instead of polling `/logs`:
+The backend publishes the fast-tier reply via [Mosquitto](https://mosquitto.org/)
+(or any MQTT broker) so the ESP32 can update its Jarvis Voice Capture tile
+the moment a response is ready, instead of polling `/logs`:
 
-| Topic              | Payload                                              | Published when                          |
-|---------------------|--------------------------------------------------------|------------------------------------------|
-| `jarvis/ui/feed`    | `{"text": "..."}`                                     | Right after the fast-tier reply is ready, and on every action-grid trigger |
-| `jarvis/ui/focus`   | `{"tasks": [{"id": 1, "text": "..."}, ...]}` (up to 3) | After the heavy tier finishes, and after any Focus CRUD mutation (create/update/toggle/delete) |
-
-The `id` field in each focus task lets the device echo a tap straight back
-to `POST /focus/{id}/toggle` (see `firmware/include/edge_api.h`) so a manual
-toggle on the device is reflected on the Command Center too.
+| Topic              | Payload            | Published when                          |
+|---------------------|--------------------|------------------------------------------|
+| `jarvis/ui/feed`    | `{"text": "..."}`  | Right after the fast-tier reply is ready |
 
 Leave `mqtt.host` blank in `config.yaml` to disable this entirely —
 `/upload/audio` still works and simply won't notify the ESP32. If the broker
@@ -80,6 +78,19 @@ Install a local broker for testing:
 sudo apt-get install mosquitto mosquitto-clients
 mosquitto_sub -h localhost -t 'jarvis/ui/#' -v   # watch published messages
 ```
+
+### Ambient Home (Tapo bulb control)
+
+`app/tapo.py` wraps [`python-kasa`](https://github.com/python-kasa/python-kasa)
+to speak Tapo's local KLAP protocol directly to each bulb's LAN IP — this
+lives on the backend rather than the ESP32 so the tricky auth/encryption
+handshake stays in a maintained library instead of hand-rolled firmware
+crypto (docs/coding.txt 3.3). Set your Tapo account email/password (same
+login as the Tapo app) via `PUT /settings` (`tapo_email`/`tapo_password`,
+editable from the Command Center's Settings page) — it's only ever used for
+the local handshake with each bulb's own IP. Every call in `app/tapo.py` is
+best-effort: an unreachable bulb returns `{"reachable": false}` instead of
+raising, so one dead bulb can't take down the whole Ambient Home grid.
 
 ## Running
 
@@ -97,13 +108,13 @@ Starts uvicorn on the host/port from `config.yaml` (default
 | GET    | `/health`       | Liveness check.                                                 |
 | POST   | `/upload/audio` | Multipart WAV upload. Returns `{id, transcript, fast_response}`. |
 | GET    | `/logs`         | Recent `LogEntry` rows (verify both AI tiers fired).             |
-| GET    | `/settings`     | Current `{fast_model, heavy_model, mqtt_host, mqtt_port}`.       |
+| GET    | `/settings`     | Current Ollama/MQTT/JARVIS/Tapo/device config.                  |
 | PUT    | `/settings`     | Update any subset of the above; rewrites `config.yaml` and reconnects MQTT if the broker config changed. |
 | GET    | `/models`       | Model names currently pulled in Ollama (`GET /api/tags`), for populating dropdowns. Returns `{"models": []}` if Ollama is unreachable. |
 | GET    | `/prompts`      | Current `{fast_system_prompt, heavy_system_prompt}`.             |
 | PUT    | `/prompts`      | Update either prompt; rewrites `prompts.yaml`.                   |
-| \*     | `/focus*`       | Full CRUD for Daily Focus items — see below.                     |
-| \*     | `/actions*`     | Trigger and browse Action Grid events — see below.               |
+| \*     | `/focus*`       | Full CRUD for the Todo List — see below.                         |
+| \*     | `/tapo/zones*`  | Ambient Home Tapo zone CRUD + control — see below.               |
 | GET    | `/jarvis/*`     | JARVIS 3.0 integration status/feed mirror — see below.           |
 
 These endpoints power the Vite Command Center frontend in
@@ -113,30 +124,31 @@ admin tool. `save_config()`/`save_prompts()` in `app/config.py` rewrite the
 YAML files with `yaml.safe_dump` — comments in `config.yaml`/`prompts.yaml`
 are lost the first time either file is edited via the API.
 
-### Daily Focus (full CRUD)
+### Todo List (full CRUD, Command Center only)
 
 | Method | Path                  | Purpose                                                          |
 |--------|-----------------------|--------------------------------------------------------------------|
 | GET    | `/focus`              | All `FocusItem` rows, ordered by position.                         |
 | POST   | `/focus`              | Create a manual item (`{"text": "..."}`); inserted at the front.    |
 | PATCH  | `/focus/{id}`         | Update `text` and/or `done`.                                        |
-| POST   | `/focus/{id}/toggle`  | Flip `done`. Used by the device's tap-to-complete gesture.          |
+| POST   | `/focus/{id}/toggle`  | Flip `done`.                                                        |
 | DELETE | `/focus/{id}`         | Delete one item.                                                    |
 
-Every mutation republishes the top 3 undone items to `jarvis/ui/focus` so the
-device's Daily Focus tile stays in sync without polling.
+There is no on-device Todo List tile — voice notes that the heavy LLM tier
+extracts tasks from land here (`source="ai"`), otherwise it's managed
+entirely from the Command Center.
 
-### Action Grid
+### Ambient Home (Tapo)
 
-| Method | Path                     | Purpose                                                                 |
-|--------|--------------------------|---------------------------------------------------------------------------|
-| POST   | `/actions/{action_type}` | Trigger `time_track`, `note`, `alert`, or `dismiss`. `note`/`alert` require `{"text": "..."}`. |
-| GET    | `/actions`               | Recent `ActionEvent` rows (`?limit=`).                                     |
-| DELETE | `/actions/{id}`          | Delete one event.                                                          |
-| DELETE | `/actions`               | Clear all action history.                                                  |
-
-`note` events are additionally forwarded to JARVIS 3.0's journal endpoint
-(best-effort) when the JARVIS integration is enabled.
+| Method | Path                          | Purpose                                                          |
+|--------|-------------------------------|----------------------------------------------------------------------|
+| GET    | `/tapo/zones`                 | All zones, live-polled in parallel (`{"reachable": bool, "on": bool, "brightness": int}` merged in). |
+| POST   | `/tapo/zones`                 | Create a zone (`{"name", "room", "ip"}`).                             |
+| PATCH  | `/tapo/zones/{id}`            | Update name/room/ip.                                                  |
+| DELETE | `/tapo/zones/{id}`            | Delete a zone.                                                        |
+| POST   | `/tapo/zones/{id}/toggle`     | Flip the bulb's actual current on/off state.                          |
+| POST   | `/tapo/zones/{id}/brightness` | Set brightness 1-100 (also turns the bulb on).                        |
+| POST   | `/tapo/zones/all_off`         | Turn every configured zone off.                                       |
 
 ### JARVIS 3.0 integration
 
@@ -148,9 +160,9 @@ device's Daily Focus tile stays in sync without polling.
 Controlled by the `jarvis` section of `config.yaml` (`enabled`, `base_url`,
 `api_prefix`) and editable from the Command Center's Settings page. All calls
 in `app/jarvis_client.py` are best-effort — if JARVIS 3.0 is offline, the
-Edge Node keeps working standalone.
+backend keeps working standalone.
 
-## Manual test (Phase 3 acceptance)
+## Manual test (voice capture pipeline)
 
 ```bash
 curl -X POST http://localhost:8010/upload/audio \
@@ -170,7 +182,8 @@ SQLite database (`jarvis_edge.db` by default) holds:
 - `LogEntry` — one row per voice upload: `raw_text` (transcript),
   `fast_response`, `structured_data` (heavy tier JSON), `status`
   (`fast_done` -> `processed`/`failed`), and `jarvis_task_id` if delegated.
-- `FocusItem` — Daily Focus rows: `text`, `done`, `position`, `source`
+- `FocusItem` — Todo List rows: `text`, `done`, `position`, `source`
   (`manual` or `ai` — AI-extracted tasks come from the heavy tier's JSON).
-- `ActionEvent` — history of Action Grid triggers: `action_type`, `text`,
-  `jarvis_synced` (whether it was also forwarded to JARVIS 3.0's journal).
+- `TapoZone` — Ambient Home zones: `name`, `room`, `ip`, and last-known
+  `on`/`brightness` (the live state is always re-polled from the bulb).
+

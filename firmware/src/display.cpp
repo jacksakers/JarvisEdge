@@ -1,4 +1,4 @@
-// Project  : Jarvis Edge Node
+// Project  : House Phone
 // File     : display.cpp
 // Purpose  : Initialise LovyanGFX driver, touch, and LVGL (LVGL v9 API)
 // Depends  : LovyanGFX_Driver.h, lvgl.h

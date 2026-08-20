@@ -1,4 +1,4 @@
-// Project  : Jarvis Edge Node
+// Project  : House Phone
 // File     : wifi_manager.h
 // Purpose  : Non-blocking WiFi connection — public interface
 // Depends  : network_config.h

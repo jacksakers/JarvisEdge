@@ -17,7 +17,12 @@ mqtt:
   host: localhost
   port: 1883
   topic_feed: jarvis/ui/feed
-  topic_focus: jarvis/ui/focus
+# Tapo account login (same as the Tapo app) — used only for the local KLAP
+# handshake with each bulb's own IP (see app/tapo.py). Leave blank to disable
+# the Ambient Home card.
+tapo:
+  email: ""
+  password: ""
 # Raw WAVs are saved here after transcription so the Command Center's Voice
 # Logs page can play them back (useful for diagnosing mic/capture issues).
 # Set keep_files: false to delete audio immediately after transcription instead.

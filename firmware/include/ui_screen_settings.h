@@ -1,4 +1,4 @@
-// Project  : Jarvis Edge Node
+// Project  : House Phone
 // File     : ui_screen_settings.h
 // Purpose  : "Settings" tile — on-device WiFi/backend/MQTT configuration
 // Depends  : ui.h

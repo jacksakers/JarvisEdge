@@ -1,4 +1,4 @@
-// Project  : Jarvis Edge Node
+// Project  : House Phone
 // File     : boot_button.cpp
 // Purpose  : Hardware BOOT-button interrupt — toggles "Plaud mode" recording
 // Depends  : boot_button.h

@@ -1,4 +1,4 @@
-// Project  : Jarvis Edge Node
+// Project  : House Phone
 // File     : mqtt_client.h
 // Purpose  : Subscribes to backend UI-update topics — public interface
 // Depends  : network_config.h
@@ -6,7 +6,7 @@
 #pragma once
 
 // Configures the PubSubClient (broker host/port from settings.h, falling back
-// to network_config.h) and subscribes to the Jarvis Feed / Daily Focus topics.
+// to network_config.h) and subscribes to the Jarvis Voice Capture feed topic.
 // Call once from setup(), after wifiManagerInit().
 void mqttClientInit();
 

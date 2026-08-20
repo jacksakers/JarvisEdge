@@ -1,23 +1,22 @@
-// Project  : Jarvis Edge Node
+// Project  : House Phone
 // File     : main.cpp
-// Purpose  : Phase 1+2+4+5 entry point — hardware baseline, UI shell, offline
-//            audio queue, WiFi/MQTT sync with the home server backend, and
-//            on-device settings management
+// Purpose  : Entry point — hardware baseline, UI shell, offline audio queue,
+//            WiFi/MQTT sync with the home server backend, on-device settings,
+//            Ambient Home (Tapo), Landline Feed (BLE), and Timers & Alarms
 // Depends  : display.h, ui.h, sd_card.h, settings.h, plaud_mode.h,
-//            wifi_manager.h, mqtt_client.h, sync_manager.h
+//            wifi_manager.h, mqtt_client.h, sync_manager.h, tapo_control.h,
+//            ble_notifications.h, timers_alarms.h
 //
-// Scope (docs/plan.txt):
-//   Phase 1 — ILI9488 panel + GT911 touch, LVGL UI shell (carousel + status bar)
-//   Phase 2 — SD-backed /queue, I2S mic capture, BOOT-button "Plaud mode"
-//   Phase 4 — WiFi + MQTT UI push-back, background auto-sync of /queue to the
-//             Phase 3 backend (Phase 3 itself lives in ../../backend)
-//   Phase 5 — On-device Settings tile (WiFi/backend/MQTT config, persisted to SD)
+// See docs/sdd.txt for the full system design and docs/new_idea.txt for the
+// original House Phone pivot proposal.
 
 #include <Arduino.h>
 #include <lvgl.h>
 #include "display.h"
 #include "ui.h"
 #include "ui_status_bar.h"
+#include "ui_screen_landline.h"
+#include "ui_screen_timers.h"
 #include "sd_card.h"
 #include "settings.h"
 #include "plaud_mode.h"
@@ -25,6 +24,9 @@
 #include "mqtt_client.h"
 #include "sync_manager.h"
 #include "device_heartbeat.h"
+#include "tapo_control.h"
+#include "ble_notifications.h"
+#include "timers_alarms.h"
 
 void setup()
 {
@@ -33,7 +35,7 @@ void setup()
 
     Serial.println();
     Serial.println("=================================================");
-    Serial.println("== Jarvis Edge Node — Phase 5 (Settings + Sync) ==");
+    Serial.println("==            House Phone — booting            ==");
     Serial.println("=================================================");
     Serial.printf("Free heap : %u bytes\n", ESP.getFreeHeap());
     Serial.printf("Free PSRAM: %u bytes\n", ESP.getFreePsram());
@@ -41,7 +43,7 @@ void setup()
 
     initDisplay();   // LovyanGFX panel + GT911 touch + LVGL
     sdCardInit();        // mount /queue for offline recordings
-    settingsInit();      // load WiFi/backend/MQTT config from SD (Settings tile)
+    settingsInit();      // load WiFi/backend/MQTT/alarm config from SD (Settings tile)
 
     if (settingsGetPowerSavingEnabled()) {
         setCpuFrequencyMhz(80);
@@ -54,11 +56,14 @@ void setup()
     uiStatusBarSetQueueCount(sdCardCountQueueFiles());
 
     wifiManagerInit();   // background WiFi connect (non-blocking)
-    mqttClientInit();    // configure broker + UI-update subscriptions
+    mqttClientInit();    // configure broker + UI-update subscription
     syncManagerInit();   // background auto-sync task (core 0)
     deviceHeartbeatInit(); // periodic online/offline ping to the Command Center
+    tapoControlInit();     // Ambient Home backend client
+    bleNotificationsInit(); // Landline Feed BLE server (Tasker bridge)
+    timersAlarmsInit();     // cooking timer + bedside alarm buzzer
 
-    Serial.println("[JarvisEdge] Init complete. Entering loop.");
+    Serial.println("[House Phone] Init complete. Entering loop.");
 }
 
 void loop()
@@ -74,6 +79,10 @@ void loop()
     mqttClientHandle(now);
     deviceHeartbeatHandle(now);
     displayHandle(now);
+    tapoControlHandle(now);
+    uiLandlineScreenHandle();
+    timersAlarmsHandle(now);
+    uiTimersScreenHandle(now);
 
     // 5 ms yield keeps timing accurate without blocking touch/I2S.
     delay(5);

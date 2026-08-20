@@ -1,5 +1,10 @@
 System Design Document: The House Phone
 
+> Status: this was the original pivot proposal. It has since been
+> implemented — see docs/sdd.txt for the resulting system design and
+> docs/plan.txt for the phased implementation log. Kept here as the
+> project's original vision doc.
+
 1. Executive Summary
 
 The "House Phone" is a dedicated, distraction-free edge device designed to replace your smartphone when you enter your home. Built on the Elecrow ESP32 3.5-inch HMI touchscreen module, it acts as a modern landline terminal and smart home command center. It pairs via Bluetooth Low Energy (BLE) to ingest real-time notifications from your primary phone, provides tactile controls for cooking timers and morning alarms, captures local AI voice notes, and functions as an ambient, frictionless dashboard for controlling your local Tapo smart home lighting.

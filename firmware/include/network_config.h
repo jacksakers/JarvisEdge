@@ -1,4 +1,4 @@
-// Project  : Jarvis Edge Node
+// Project  : House Phone
 // File     : network_config.h
 // Purpose  : Compile-time WiFi/backend/MQTT settings (Phase 4)
 // Depends  : (none)
@@ -31,7 +31,6 @@
 #define JARVIS_MQTT_PORT       1883
 #endif
 
-// Topics the backend publishes UI updates to (docs/sdd.txt 4.2/4.3;
-// must match backend/config.yaml's mqtt.topic_feed / mqtt.topic_focus).
+// Topic the backend publishes UI updates to (docs/sdd.txt Card 4; must
+// match backend/config.yaml's mqtt.topic_feed).
 #define JARVIS_MQTT_TOPIC_FEED   "jarvis/ui/feed"
-#define JARVIS_MQTT_TOPIC_FOCUS  "jarvis/ui/focus"

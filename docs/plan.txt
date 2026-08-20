@@ -1,79 +1,92 @@
-Implementation Guide: Jarvis Edge Node
+Implementation Guide: House Phone
 
-This guide provides a phased roadmap for building the Jarvis Edge Node system.
+This guide tracks the phased roadmap for House Phone, a pivot of the
+original "Jarvis Edge Node" project (see docs/new_idea.txt for the pivot
+proposal, docs/sdd.txt for the resulting system design).
 
-Phase 1: Hardware Baseline & UI Shell
+Phases 1-6 below (hardware baseline through JARVIS 3.0 integration) are the
+Jarvis Edge Node foundation the pivot builds on top of — all implemented,
+kept mostly as-is. Phases 7-9 are the House Phone-specific work.
 
-Goal: Get the screen turning on, rendering a static UI, and responding to touch without lag.
+Phase 1: Hardware Baseline & UI Shell — done
 
-Environment Setup: Set up Arduino IDE or PlatformIO for the ESP32-S3. Install TFT_eSPI (for display drivers) and lvgl libraries.
+ILI9488 + GT911 touch bring-up (LovyanGFX), LVGL v9 UI shell, the
+persistent status bar + swipeable `lv_tileview` carousel.
 
-Display Init: Write the setup code to initialize the ILI9488 display. Confirm you can draw simple shapes.
+Phase 2: Audio & Offline Mode (the "Plaud" feature) — done
 
-SquareLine Studio: Use SquareLine Studio to design the "Smartwatch" carousel layout (Status Bar, Jarvis Feed, To-Do list). Export the C code and integrate it into your project.
+SD-backed `/queue`, I2S PDM mic capture (buffered fully in PSRAM — the mic
+and SD card share hardware and can't run simultaneously), BOOT-button
+screen-off recording.
 
-Touch Integration: Connect the capacitive touch interrupts to LVGL's input device system (lv_indev_drv_t).
+Phase 3: Backend API & AI Routing — done
 
-Test: Ensure you can swipe between the static screens smoothly.
+FastAPI + SQLite, `POST /upload/audio` (multipart WAV), local faster-whisper
+transcription, fast/heavy dual-tier Ollama routing.
 
-Phase 2: Audio & Offline Mode (The "Plaud" Feature)
+Phase 4: Synchronization & MQTT — done
 
-Goal: Capture audio to the SD card and toggle the screen via the hardware button.
+Mosquitto broker, ESP32 WiFi + PubSubClient, background auto-sync of
+`/queue/*.wav`, MQTT push-back updating the Jarvis Voice Capture tile.
 
-SD Card Init: Initialize the SPI connection to the onboard TF card slot.
+Phase 5: Command Center (Vite frontend) & On-device Settings — done
 
-I2S Microphone: Configure the I2S driver to read from the Elecrow's onboard microphone pins.
+Vite + React admin frontend; on-device Settings tile (WiFi/backend/MQTT,
+persisted to SD).
 
-The State Machine: Implement the hardware button interrupt.
+Phase 6: Full CRUD & JARVIS 3.0 integration — done
 
-On Press (Start): Turn off TFT backlight (digitalWrite(TFT_BL, LOW)), pause lv_task_handler(), open /queue/log_X.wav, start I2S read loop.
+Backend CRUD for to-do items, optional best-effort bridge to a full
+JARVIS 3.0 instance (voice transcripts delegated to its agent loop).
 
-On Press (Stop): Close .wav file, turn on backlight, resume lv_task_handler().
+Phase 7: House Phone pivot — Ambient Home (Tapo) — done
 
-Test: Walk away from your PC, record a message, take the SD card out, and play the WAV file on your computer.
+Goal: control Tapo smart bulbs from the device without hand-rolling the
+KLAP local protocol in firmware.
 
-Phase 3: Backend API & AI Routing
+- Backend: `app/tapo.py` wraps `python-kasa` for local bulb control;
+  `TapoZone` model + `/tapo/zones*` CRUD/toggle/brightness/all_off
+  endpoints. Requires a Tapo account email/password in `config.yaml`.
+- Firmware: `tapo_control.h/.cpp` polls `/tapo/zones` and posts
+  toggle/brightness fire-and-forget; `ui_screen_home.h/.cpp` renders the
+  Ambient Home grid (tap to toggle, long-press for brightness, "All Off").
+- Frontend: `TapoPage.jsx` — zone CRUD, live toggle/brightness, All Off.
 
-Goal: Stand up the FastAPI server and configure the dual-model AI pipeline.
+Phase 8: House Phone pivot — Landline Feed (BLE) — done
 
-FastAPI Setup: Initialize a standard FastAPI app with an SQLite database.
+Goal: relay Android notifications from a paired phone without writing an
+Android app.
 
-The Ingestion Endpoint: Create a POST /upload/audio endpoint that accepts multipart form data (the WAV file).
+- Firmware: `ble_notifications.h/.cpp` — a BLE GATT server (advertises as
+  "House Phone") that accepts a JSON notification payload from a Tasker
+  profile (BLE/GATT plugin) and holds the last few in an in-RAM ring
+  buffer (never persisted — matches a real phone's ephemeral notification
+  shade). `ui_screen_landline.h/.cpp` renders them as dismissible cards.
+- Mobile side: configure Tasker with a BLE/GATT write plugin pointed at the
+  characteristic UUID documented in `ble_notifications.h`; no custom app.
 
-Transcription Pipeline: Integrate a local Whisper/Qwen-ASR script that runs on the received audio.
+Phase 9: House Phone pivot — Timers & Alarms — done
 
-Dual-Routing Logic: * Route transcribed text to Ollama (Fast Model) using httpx.
+Goal: a standalone bedside alarm clock + kitchen timer, no phone required.
 
-Add the raw text to a FastAPI BackgroundTask to be processed by the Heavy Model later.
+- Firmware: `timers_alarms.h/.cpp` — non-blocking countdown timer (preset
+  buttons) and a wall-clock alarm (compared against NTP-synced local time),
+  both driving the onboard buzzer; persisted alarm hour/minute/enabled via
+  `settings.h`. `ui_screen_timers.h/.cpp` renders presets, the countdown,
+  and hour/minute rollers for the alarm.
+- Hardware caveat: `TIMER_BUZZER_PIN` has not been confirmed against a real
+  board revision — verify before flashing.
 
-Test: Use Postman or curl to manually upload the WAV file from Phase 2 to the server and ensure both AI models trigger correctly.
+Phase 10: Cleanup — done
 
-Phase 4: Synchronization & MQTT
+Removed the Daily Focus/Action Grid on-device tiles and their MQTT
+push-back (replaced by Ambient Home / Landline Feed / Timers & Alarms in
+the carousel); the backend's to-do CRUD moved to being Command-Center-only
+(`TodoPage.jsx`, still fed by the heavy LLM tier's task extraction).
 
-Goal: Connect the Edge Node to the Backend.
+Not yet implemented (future work, not required for the pivot)
 
-MQTT Broker: Install Mosquitto on your Linux Mini PC.
-
-Backend Publisher: Integrate fastapi-mqtt into your Python backend. Have the "Fast Model" completion function publish a JSON payload to topic jarvis/ui/update.
-
-ESP32 Wi-Fi & MQTT: Add Wi-Fi and standard PubSubClient (MQTT) libraries to your C++ firmware.
-
-Auto-Sync Loop: Write a background loop on the ESP32: If Wi-Fi is connected, iterate over files in /queue/, send them via HTTP POST to the Phase 3 endpoint, and delete on success.
-
-UI Update Callback: In the ESP32 MQTT callback, parse incoming JSON and update the LVGL text labels (e.g., change the "Jarvis Feed" text to the AI's response).
-
-Phase 5: Vite Command Center
-
-Goal: Build the web app to manage the system.
-
-Vite Init: Scaffold a new React/Vue project using Vite.
-
-Dashboard UI: Build views for:
-
-Settings: Dropdowns to select which Ollama models are assigned to the Fast/Heavy tiers.
-
-Prompts: Text areas to edit the system prompts (saved to the FastAPI SQLite DB).
-
-Data: A list view of the tasks/notes the Heavy model generated from your day's recordings.
-
-Deploy: Host the Vite static build alongside your FastAPI server on the Mini PC.
+- Direct smart-light control from Landline Feed notifications (e.g. "turn
+  off the lights" voice command routed to `/tapo/zones/all_off`).
+- BLE-side acknowledgement back to Tasker (e.g. marking a notification read
+  on the phone when dismissed on-device).

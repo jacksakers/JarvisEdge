@@ -1,4 +1,4 @@
-// Project  : Jarvis Edge Node
+// Project  : House Phone
 // File     : mic_capture.cpp
 // Purpose  : I2S mic -> PSRAM buffer -> High-Pass DC Filter -> WAV write
 // Depends  : mic_capture.h, sd_card.h

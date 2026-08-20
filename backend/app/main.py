@@ -8,6 +8,7 @@ the device (docs/sdd.txt 4.2) pushes the reply/tasks in the background.
 Also exposes read/write settings + prompts endpoints for the Phase 5 Vite
 admin frontend (../frontend).
 """
+import asyncio
 import json
 import logging
 import os
@@ -22,14 +23,14 @@ from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 from sqlmodel import select
 
-from app import jarvis_client, mqtt
+from app import jarvis_client, mqtt, tapo
 from app.asr import transcribe_wav
 from app.concurrency import ai_semaphore
 from app.config import get_audio_dir, load_config, load_prompts, save_config, save_prompts
 from app.database import init_db, session_scope
 from app.device_status import get_status as get_device_status, record_heartbeat
 from app.llm import fast_reply, heavy_process, list_available_models
-from app.models import ActionEvent, FocusItem, LogEntry
+from app.models import FocusItem, LogEntry, TapoZone
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -37,9 +38,6 @@ logger = logging.getLogger(__name__)
 # Reject absurdly large uploads before they hit memory/SD — a few minutes of
 # 16-bit mono WAV at 16kHz is well under this.
 MAX_UPLOAD_BYTES = 25 * 1024 * 1024
-
-# Matches UI_FOCUS_ITEM_COUNT in firmware/include/ui_screen_focus.h
-MAX_FOCUS_ITEMS = 3
 
 
 def _save_debug_audio(audio_bytes: bytes, reason: str) -> None:
@@ -107,22 +105,6 @@ async def device_status():
     return get_device_status()
 
 
-def _publish_focus_from_db() -> None:
-    """Push the current top undone Focus items to the ESP32 over MQTT."""
-    cfg = load_config().get("mqtt", {})
-    with session_scope() as session:
-        items = session.exec(
-            select(FocusItem)
-            .where(FocusItem.done == False)  # noqa: E712
-            .order_by(FocusItem.position, FocusItem.id)
-            .limit(MAX_FOCUS_ITEMS)
-        ).all()
-        # id is included so the device can POST /focus/{id}/toggle when the
-        # user taps a row (see firmware/src/ui_screen_focus.cpp).
-        tasks = [{"id": item.id, "text": item.text} for item in items]
-    mqtt.publish(cfg.get("topic_focus", "jarvis/ui/focus"), {"tasks": tasks})
-
-
 async def _run_heavy(log_id: int, transcript: str) -> None:
     """Background task: heavy-tier structuring, run after the HTTP response is sent."""
     try:
@@ -162,7 +144,6 @@ async def _run_heavy(log_id: int, transcript: str) -> None:
                     text=task_text, source="ai", log_entry_id=log_id,
                     position=next_pos + offset,
                 ))
-    _publish_focus_from_db()
 
     # Optionally hand the same transcript to the full JARVIS 3.0 agent loop
     # (tools + memory) so it can act on it beyond simple task extraction.
@@ -325,7 +306,9 @@ async def bulk_delete_logs():
     return {"deleted": count}
 
 
-# ── Daily Focus (full CRUD — docs/sdd.txt 4.3) ───────────────────────────────
+# ── Todo List (full CRUD — docs/sdd.txt 4.3) ─────────────────────────────────
+# Command-Center-only (no on-device tile) — voice notes that the heavy LLM
+# tier extracts tasks from land here too (source="ai", see _run_heavy above).
 
 class FocusCreate(BaseModel):
     text: str
@@ -359,7 +342,6 @@ async def create_focus(payload: FocusCreate):
         session.flush()
         session.refresh(item)
         result = item.model_dump(mode="json")
-    _publish_focus_from_db()
     return result
 
 
@@ -379,13 +361,11 @@ async def update_focus(item_id: int, payload: FocusUpdate):
         session.flush()
         session.refresh(item)
         result = item.model_dump(mode="json")
-    _publish_focus_from_db()
     return result
 
 
 @app.post("/focus/{item_id}/toggle")
 async def toggle_focus(item_id: int):
-    """Convenience endpoint for the device — tapping a Daily Focus row calls this."""
     with session_scope() as session:
         item = session.get(FocusItem, item_id)
         if not item:
@@ -395,7 +375,6 @@ async def toggle_focus(item_id: int):
         session.flush()
         session.refresh(item)
         result = item.model_dump(mode="json")
-    _publish_focus_from_db()
     return result
 
 
@@ -406,84 +385,141 @@ async def delete_focus(item_id: int):
         if not item:
             raise HTTPException(404, "Focus item not found")
         session.delete(item)
-    _publish_focus_from_db()
 
 
-# ── Action Grid (docs/sdd.txt 3 — mirrored by the device's Action Grid tile
-#    and the Command Center's quick-action buttons) ──────────────────────────
+# ── Ambient Home / Tapo bulb control (docs/sdd.txt Card 1) ───────────────────
+# Zones are configured from the Command Center (this CRUD); the device's
+# Ambient Home grid only ever calls the toggle/brightness/all_off endpoints.
 
-VALID_ACTION_TYPES = {"time_track", "note", "alert", "dismiss"}
+class TapoZoneCreate(BaseModel):
+    name: str
+    room: str = ""
+    ip: str
 
 
-class ActionPayload(BaseModel):
-    text: str | None = None
+class TapoZoneUpdate(BaseModel):
+    name: str | None = None
+    room: str | None = None
+    ip: str | None = None
 
 
-@app.post("/actions/{action_type}")
-async def trigger_action(action_type: str, payload: ActionPayload = ActionPayload()):
-    if action_type not in VALID_ACTION_TYPES:
-        raise HTTPException(404, f"Unknown action '{action_type}'")
+class TapoBrightness(BaseModel):
+    brightness: int
 
-    text = (payload.text or "").strip()
-    cfg = load_config().get("mqtt", {})
-    feed_topic = cfg.get("topic_feed", "jarvis/ui/feed")
-    jarvis_synced = False
 
-    if action_type == "time_track":
-        now = datetime.now(timezone.utc).astimezone()
-        feed_text = f"Time tracked at {now.strftime('%H:%M')}."
-        mqtt.publish(feed_topic, {"text": feed_text})
+async def _zone_with_live_state(zone: TapoZone) -> dict:
+    data = zone.model_dump(mode="json")
+    data.update(await tapo.get_zone_state(zone.ip))
+    return data
 
-    elif action_type == "note":
-        if not text:
-            raise HTTPException(422, "text is required for a note")
-        mqtt.publish(feed_topic, {"text": "Note saved."})
-        if jarvis_client.is_enabled():
-            jarvis_synced = await jarvis_client.submit_journal_note("Edge Node Note", text)
 
-    elif action_type == "alert":
-        if not text:
-            raise HTTPException(422, "text is required for an alert")
-        mqtt.publish(feed_topic, {"text": f"\u26a0 {text}"})
-
-    elif action_type == "dismiss":
-        mqtt.publish(feed_topic, {"text": "Jarvis is ready."})
-
+@app.get("/tapo/zones")
+async def list_tapo_zones():
+    """All configured zones, live-polled in parallel so one unreachable bulb
+    doesn't slow down the rest of the Ambient Home grid."""
     with session_scope() as session:
-        event = ActionEvent(action_type=action_type, text=text, jarvis_synced=jarvis_synced)
-        session.add(event)
+        zones = session.exec(select(TapoZone).order_by(TapoZone.id)).all()
+        zones = list(zones)
+    return await asyncio.gather(*(_zone_with_live_state(z) for z in zones))
+
+
+@app.post("/tapo/zones", status_code=201)
+async def create_tapo_zone(payload: TapoZoneCreate):
+    if not payload.name.strip() or not payload.ip.strip():
+        raise HTTPException(422, "name and ip are required")
+    with session_scope() as session:
+        zone = TapoZone(name=payload.name.strip(), room=payload.room.strip(), ip=payload.ip.strip())
+        session.add(zone)
         session.flush()
-        session.refresh(event)
-        result = event.model_dump(mode="json")
-    return result
+        session.refresh(zone)
+        return await _zone_with_live_state(zone)
 
 
-@app.get("/actions")
-async def list_actions(limit: int = 50):
+@app.patch("/tapo/zones/{zone_id}")
+async def update_tapo_zone(zone_id: int, payload: TapoZoneUpdate):
     with session_scope() as session:
-        events = session.exec(
-            select(ActionEvent).order_by(ActionEvent.id.desc()).limit(limit)
-        ).all()
-        return [e.model_dump(mode="json") for e in events]
+        zone = session.get(TapoZone, zone_id)
+        if not zone:
+            raise HTTPException(404, "Zone not found")
+        if payload.name is not None:
+            zone.name = payload.name.strip()
+        if payload.room is not None:
+            zone.room = payload.room.strip()
+        if payload.ip is not None:
+            zone.ip = payload.ip.strip()
+        session.add(zone)
+        session.flush()
+        session.refresh(zone)
+        return await _zone_with_live_state(zone)
 
 
-@app.delete("/actions/{event_id}", status_code=204)
-async def delete_action(event_id: int):
+@app.delete("/tapo/zones/{zone_id}", status_code=204)
+async def delete_tapo_zone(zone_id: int):
     with session_scope() as session:
-        event = session.get(ActionEvent, event_id)
-        if not event:
-            raise HTTPException(404, "Action event not found")
-        session.delete(event)
+        zone = session.get(TapoZone, zone_id)
+        if not zone:
+            raise HTTPException(404, "Zone not found")
+        session.delete(zone)
 
 
-@app.delete("/actions")
-async def bulk_delete_actions():
+@app.post("/tapo/zones/{zone_id}/toggle")
+async def toggle_tapo_zone(zone_id: int):
+    """Flips whatever the bulb's actual current state is (not the cached one),
+    so it stays correct even if it was last changed from the Tapo app."""
     with session_scope() as session:
-        events = session.exec(select(ActionEvent)).all()
-        count = len(events)
-        for event in events:
-            session.delete(event)
-    return {"deleted": count}
+        zone = session.get(TapoZone, zone_id)
+        if not zone:
+            raise HTTPException(404, "Zone not found")
+        ip = zone.ip
+
+    state = await tapo.get_zone_state(ip)
+    ok = await tapo.set_power(ip, not state.get("on", False))
+    if not ok:
+        raise HTTPException(502, "Could not reach the bulb")
+
+    with session_scope() as session:
+        zone = session.get(TapoZone, zone_id)
+        zone.on = not state.get("on", False)
+        session.add(zone)
+        session.flush()
+        session.refresh(zone)
+        return await _zone_with_live_state(zone)
+
+
+@app.post("/tapo/zones/{zone_id}/brightness")
+async def set_tapo_brightness(zone_id: int, payload: TapoBrightness):
+    with session_scope() as session:
+        zone = session.get(TapoZone, zone_id)
+        if not zone:
+            raise HTTPException(404, "Zone not found")
+        ip = zone.ip
+
+    ok = await tapo.set_brightness(ip, payload.brightness)
+    if not ok:
+        raise HTTPException(502, "Could not reach the bulb")
+
+    with session_scope() as session:
+        zone = session.get(TapoZone, zone_id)
+        zone.on = True
+        zone.brightness = max(1, min(100, payload.brightness))
+        session.add(zone)
+        session.flush()
+        session.refresh(zone)
+        return await _zone_with_live_state(zone)
+
+
+@app.post("/tapo/zones/all_off")
+async def tapo_all_off():
+    """The Ambient Home grid's "All Off" button (docs/new_idea.txt section 4)."""
+    with session_scope() as session:
+        zones = session.exec(select(TapoZone)).all()
+        ips = [z.ip for z in zones]
+    results = await asyncio.gather(*(tapo.set_power(ip, False) for ip in ips))
+    with session_scope() as session:
+        for zone in session.exec(select(TapoZone)).all():
+            zone.on = False
+            session.add(zone)
+    return {"ok": all(results) if results else True}
 
 
 # ── JARVIS 3.0 integration (optional — app/jarvis_client.py) ─────────────────
@@ -514,6 +550,9 @@ class SettingsUpdate(BaseModel):
     jarvis_enabled: bool | None = None
     jarvis_base_url: str | None = None
 
+    tapo_email: str | None = None
+    tapo_password: str | None = None
+
     ambient_vad_mode: bool | None = None
     power_saving_mode: bool | None = None
     screen_off_timeout: int | None = None
@@ -530,6 +569,7 @@ async def get_settings():
     ollama_cfg = cfg.get("ollama", {})
     mqtt_cfg = cfg.get("mqtt", {})
     jarvis_cfg = cfg.get("jarvis", {})
+    tapo_cfg = cfg.get("tapo", {})
     device_cfg = cfg.get("device", {})
     return {
         "fast_model": ollama_cfg.get("fast_model"),
@@ -538,6 +578,8 @@ async def get_settings():
         "mqtt_port": mqtt_cfg.get("port"),
         "jarvis_enabled": jarvis_cfg.get("enabled", False),
         "jarvis_base_url": jarvis_cfg.get("base_url", ""),
+        "tapo_email": tapo_cfg.get("email", ""),
+        "tapo_password": tapo_cfg.get("password", ""),
 
         "ambient_vad_mode": device_cfg.get("ambient_vad_mode", False),
         "power_saving_mode": device_cfg.get("power_saving_mode", False),
@@ -553,6 +595,7 @@ async def update_settings(update: SettingsUpdate):
     ollama_cfg = cfg.setdefault("ollama", {})
     mqtt_cfg = cfg.setdefault("mqtt", {})
     jarvis_cfg = cfg.setdefault("jarvis", {})
+    tapo_cfg = cfg.setdefault("tapo", {})
     device_cfg = cfg.setdefault("device", {})
 
     if update.fast_model is not None:
@@ -576,6 +619,12 @@ async def update_settings(update: SettingsUpdate):
 
     if update.jarvis_base_url is not None:
         jarvis_cfg["base_url"] = update.jarvis_base_url
+
+    if update.tapo_email is not None:
+        tapo_cfg["email"] = update.tapo_email
+
+    if update.tapo_password is not None:
+        tapo_cfg["password"] = update.tapo_password
 
     if update.ambient_vad_mode is not None:
         device_cfg["ambient_vad_mode"] = update.ambient_vad_mode

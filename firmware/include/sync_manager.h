@@ -1,4 +1,4 @@
-// Project  : Jarvis Edge Node
+// Project  : House Phone
 // File     : sync_manager.h
 // Purpose  : Background auto-sync of /queue/*.wav to the backend — public interface
 // Depends  : (none)

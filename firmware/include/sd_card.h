@@ -1,4 +1,4 @@
-// Project  : Jarvis Edge Node
+// Project  : House Phone
 // File     : sd_card.h
 // Purpose  : SD card initialisation — public interface
 // Depends  : <SPI.h>, <SD.h>

@@ -1,4 +1,4 @@
-// Project  : Jarvis Edge Node
+// Project  : House Phone
 // File     : sd_card.cpp
 // Purpose  : SD card SPI init and mount (SPI3/HSPI — separate from display SPI2)
 // Depends  : sd_card.h, <SPI.h>, <SD.h>

@@ -1,11 +1,11 @@
 import { NavLink } from 'react-router-dom'
-import { Radio, ListTodo, Zap, ScrollText, Cpu, Settings, MessageSquareText } from 'lucide-react'
+import { Radio, ListTodo, Lightbulb, ScrollText, Cpu, Settings, MessageSquareText } from 'lucide-react'
 import clsx from 'clsx'
 
 const NAV_ITEMS = [
-  { to: '/', label: 'Jarvis Feed', icon: Radio, end: true },
-  { to: '/focus', label: 'Daily Focus', icon: ListTodo },
-  { to: '/actions', label: 'Action Grid', icon: Zap },
+  { to: '/', label: 'Voice Capture', icon: Radio, end: true },
+  { to: '/tapo', label: 'Ambient Home', icon: Lightbulb },
+  { to: '/todo', label: 'Todo List', icon: ListTodo },
   { to: '/logs', label: 'Voice Logs', icon: ScrollText },
   { to: '/jarvis', label: 'JARVIS Link', icon: Cpu },
   { to: '/prompts', label: 'Prompts', icon: MessageSquareText },
@@ -26,7 +26,7 @@ export default function Sidebar({ connected }) {
           />
         </div>
         <div>
-          <div className="text-sm font-semibold text-white leading-tight">Jarvis Edge</div>
+          <div className="text-sm font-semibold text-white leading-tight">House Phone</div>
           <div className="text-[11px] text-jarvis-muted leading-tight">Command Center</div>
         </div>
       </div>
@@ -53,7 +53,7 @@ export default function Sidebar({ connected }) {
       </nav>
 
       <div className="px-5 py-4 border-t border-jarvis-border text-[10px] text-jarvis-muted/70">
-        Jarvis Edge Node &middot; Phase 6
+        House Phone
       </div>
     </div>
   )

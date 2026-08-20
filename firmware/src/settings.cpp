@@ -1,4 +1,4 @@
-// Project  : Jarvis Edge Node
+// Project  : House Phone
 // File     : settings.cpp
 // Purpose  : Persistent key-value settings stored on SD card
 // Depends  : settings.h, sd_card.h, network_config.h, <SD.h>
@@ -24,6 +24,10 @@ static bool s_power_saving      = false;
 static int  s_screen_off        = 30;
 static bool s_screen_lock       = false;
 
+static int  s_alarm_hour        = -1;   // -1 = never configured
+static int  s_alarm_minute      = 0;
+static bool s_alarm_enabled     = false;
+
 
 static void apply_kv(const char * key, const char * val)
 {
@@ -48,6 +52,12 @@ static void apply_kv(const char * key, const char * val)
         s_screen_off = atoi(val);
     } else if (strcmp(key, "screen_lock_enabled") == 0) {
         s_screen_lock = (atoi(val) != 0);
+    } else if (strcmp(key, "alarm_hour") == 0) {
+        s_alarm_hour = atoi(val);
+    } else if (strcmp(key, "alarm_minute") == 0) {
+        s_alarm_minute = atoi(val);
+    } else if (strcmp(key, "alarm_enabled") == 0) {
+        s_alarm_enabled = (atoi(val) != 0);
     }
     /* Unknown keys are silently ignored for forwards compatibility */
 }
@@ -122,6 +132,9 @@ void settingsSave()
     f.printf("power_saving_mode=%d\n", s_power_saving ? 1 : 0);
     f.printf("screen_off_timeout=%d\n", s_screen_off);
     f.printf("screen_lock_enabled=%d\n", s_screen_lock ? 1 : 0);
+    f.printf("alarm_hour=%d\n", s_alarm_hour);
+    f.printf("alarm_minute=%d\n", s_alarm_minute);
+    f.printf("alarm_enabled=%d\n", s_alarm_enabled ? 1 : 0);
     f.close();
 
     Serial.println("[Settings] Saved.");
@@ -179,3 +192,17 @@ void settingsSetScreenOffTimeout(int v) { s_screen_off = v; }
 bool settingsGetScreenLockEnabled() { return s_screen_lock; }
 
 void settingsSetScreenLockEnabled(bool v) { s_screen_lock = v; }
+
+void settingsGetAlarm(int * hour, int * minute, bool * enabled)
+{
+    if (hour) *hour = s_alarm_hour;
+    if (minute) *minute = s_alarm_minute;
+    if (enabled) *enabled = s_alarm_enabled;
+}
+
+void settingsSetAlarm(int hour, int minute, bool enabled)
+{
+    s_alarm_hour = hour;
+    s_alarm_minute = minute;
+    s_alarm_enabled = enabled;
+}
